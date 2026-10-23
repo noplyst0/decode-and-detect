@@ -1,9 +1,9 @@
 .venv/
 data/
-mock/
+mock*/
 runs/
 *.parquet
-submission*.csv
+sub*.csv
 __pycache__/
 *.zip
 briefing/
