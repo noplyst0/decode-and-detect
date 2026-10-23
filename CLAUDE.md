@@ -27,11 +27,16 @@ Score every test transaction for laundering-style behaviour. Supervised: trainin
 
 ## Repo
 - `src/pipeline.py`: the whole job. Flags: `--fast` (1 seed, 1 stacking round), `--drop block1,block2`
-  (ablation; the blocks are tx account history timing chains match cycles sg graph iforest), `--stack N`,
+  (ablation; blocks: tx account history timing chains match cycles sg graph iforest conv memo probe), `--stack N`,
   `--seeds N`, `--xgb` (XGBoost blended in if OOF AP improves), `--dump` (writes runs/oof.parquet).
+  Opt-in (did not help on either practice set, may on real data): `--add subset,dormancy`, `--vtags` (split
+  busy receivers per destination tag), `--local-stack` (+-24h neighbour scores), `--stack-dropout 0.3`.
   Every run appends to `runs/log.csv` (time, commit, seed, n_features, CV AP per round, final CV AP, drop, file).
 - `src/inspect_errors.py` (after `--dump`): worst misses and false alarms, plus the money flow around them.
-- `src/ensemble.py`: rank-average CSVs (ours plus teammates'). `src/mock_data.py`: practice-week simulator
+- `src/mock_gemini.py`: an INDEPENDENT practice generator written by Gemini (Argon 4) from the challenge brief
+  only. It's much harder than ours: warm mules, amount-matched, 1.5-5 day hard cases, issuer swaps, probes,
+  memo templates. Test every change on BOTH generators; keep it only if neither gets worse.
+- `src/ensemble.py`: rank-average CSVs (ours plus teammates'). `src/mock_data.py`: our practice-week simulator
   (innocent twins for every shape, recruited mules, slow hard cases, test-only shapes). `src/eval_mock.py`:
   AP by difficulty and shape on the mock.
 - Column names follow the real SonarX parquet files (checked 2026-10-23): transfers have TRANSACTION_HASH,
@@ -51,12 +56,26 @@ Score every test transaction for laundering-style behaviour. Supervised: trainin
 - Stacking uses leave-one-out neighbour scores: same wallet, funding tx, next tx, matched prev/next, same pair.
 - Hubs (degree above the 99.5th percentile and at least 50) are excluded from the graph searches.
 
+## What the practice runs taught us (2026-10-24, see NOTES.md)
+- On Gemini's data: 83.3 -> 93.7 after adding conv (issuer swaps, 3-leg, conversion habits), memo
+  (hex-decoded text pattern + out-of-fold laundering rate per pattern) and probe (failed attempts) blocks.
+  Almost all of the hard-case gain (9.7 -> 59) came from memo patterns. Without memos its hard cases stay
+  ~9 AP whatever we add, so check early whether the real MEMOS column carries signal.
+- Our CV overstates on shifted data (Gemini: CV 97 vs test 94). Trust the leaderboard over CV for close calls.
+
+## Gemini (second model)
+Gemini CLI sign-in is refused for Faizan's account. Use gemini.google.com in Chrome: model "4 Argon",
+Thinking level High (recipe in memory `gemini-access-route`). Use it for independent ideas and reviews,
+never for the organisers' raw data. Test every suggestion before keeping it.
+
 ## First 30 minutes tomorrow (in this order)
 1. Put the data in `data/train`, `data/test`. Read README.md. Fix load-layer names if needed (top of pipeline.py).
 2. Run `baseline.py` and submit it. That proves the upload works and gives the number to beat.
 3. `pipeline.py --fast`, then the full run, then submit. Compare CV AP with the leaderboard AP.
-4. `--dump`, then `inspect_errors.py`. Study what the misses look like and add features for them.
-5. Ablate blocks that might not transfer (`--drop`) and keep whatever the leaderboard confirms.
+4. Check the MEMOS and DestinationTag columns: how often filled, and the label rate by memo pattern
+   (memo_prefix_te in the importance list). If tags are heavily used on exchange deposits, try `--vtags`.
+5. `--dump`, then `inspect_errors.py`. Study what the misses look like and add features for them.
+6. Ablate blocks that might not transfer (`--drop`), try the opt-in flags, keep what the leaderboard confirms.
 
 ## How to work (Pro plan: tokens are the scarce resource)
 - Be terse. Run code yourself; print summaries (shapes, AP, top features), never whole frames.

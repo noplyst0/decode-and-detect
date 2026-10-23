@@ -18,12 +18,21 @@
    sg       scatter-gather: parallel 2-hop routes between the same two wallets
    graph    pair counts, reciprocity, hubs, strongly connected parts
    iforest  unsupervised oddness of each wallet (for patterns never seen in training)
+   conv     currency behaviour: issuer swaps (USD->USD at another issuer), symbol changes, 3-leg paths,
+            each wallet's conversion habits
+   memo     memo text (hex-decoded): pattern frequency, and out-of-fold laundering rate per memo pattern
+   probe    failed attempts just before a payment, and failures followed by a success
+   subset   split-aware matching: 1-3 recent inflows summing to this payment, 1-3 next outflows summing to it
+   dormancy idle time before a payment, and how idle the receiver's other payers were (sleepers waking)
+   subset/dormancy are OFF by default (--add); so are --vtags (split busy receivers per destination tag)
+   and --local-stack (+-24h neighbour scores). All four were Gemini's review ideas; none helped on either
+   practice dataset (2026-10-24), but the real data may differ, so they stay one flag away.
 3. LightGBM, 5-fold CV where each laundering case stays in one fold, early stopping on AP.
 4. stacking: each payment learns from its neighbours' scores (same wallet, the payment that funded the
    sender, the receiver's next payment, same pair), so a whole flow lights up together. 2 rounds.
 5. seed average (+ optional XGBoost), continuous scores in [0, 1], CSV + run log.
 """
-import argparse, json, os, subprocess, time
+import argparse, json, os, re, subprocess, time
 import numpy as np, pandas as pd, networkx as nx, lightgbm as lgb
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import average_precision_score as aps, roc_auc_score
@@ -33,6 +42,7 @@ XRP_TOKEN = "0x1111222211112222111122221111222211112222"
 HOUR, DAY, BIG = 3600, 86400, 10**8
 LINK_WINDOW, CYCLE_WINDOW, CYCLE_MAX_LEN, CYCLE_CAP = 48 * HOUR, 72 * HOUR, 6, 2000
 T0 = time.time()
+VIRTUAL_TAGS = False  # (--vtags) busy receivers are split per destination tag (one exchange address = many customers)
 
 
 def log(msg):
@@ -134,6 +144,35 @@ def parse_json(s):
     return {}
 
 
+def memo_text(s):
+    """Plain memo text. Real XRPL memos are JSON with hex-encoded MemoData/MemoType; decode those."""
+    if not isinstance(s, str) or not s.strip():
+        return None
+    if s.lstrip()[:1] not in "[{":
+        return s
+    try:
+        obj = json.loads(s)
+    except ValueError:
+        return s
+    out = []
+
+    def walk(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k in ("MemoData", "MemoType", "MemoFormat") and isinstance(v, str):
+                    try:
+                        out.append(bytes.fromhex(v).decode("utf-8", "ignore"))
+                    except ValueError:
+                        out.append(v)
+                else:
+                    walk(v)
+        elif isinstance(o, list):
+            for x in o:
+                walk(x)
+    walk(obj)
+    return " ".join(out).strip() or s
+
+
 def build_edges(tx, tr, rates):
     """One row per transaction: who paid whom, which assets, how much in USD, when."""
     tr = tr.copy()
@@ -164,10 +203,34 @@ def build_edges(tx, tr, rates):
     e["DST"] = extra.map(lambda x: x.get("Destination")).fillna(e["DST_LEG"])
     e["DEST_TAG"] = extra.map(lambda x: x.get("DestinationTag"))
     e["HAS_SENDMAX"] = extra.map(lambda x: "SendMax" in x).astype(int)
-    e["HAS_MEMO"] = t["MEMOS"].notna().astype(int) if "MEMOS" in t else 0
+    e["MEMO_TEXT"] = t["MEMOS"].map(memo_text) if "MEMOS" in t else None
+    e["HAS_MEMO"] = e["MEMO_TEXT"].notna().astype(int)
     e["SUCCESS"] = (t["TRANSACTION_RESULT"].eq("tesSUCCESS") if "TRANSACTION_RESULT" in t
                     else t["SUCCESS"].astype(bool) if "SUCCESS" in t else pd.Series(True, index=t.index)).astype(int)
     e["N_LEGS"] = e["N_LEGS"].fillna(0)
+    # failed payments have no legs: price what they tried to deliver (Amount) so they are not blank
+    miss = e.USD_SENT.isna() & extra.map(lambda x: "Amount" in x)
+    if miss.any():
+        xrp_tok = tr.loc[tr.SYMBOL.eq("XRP"), "TOKEN_ADDRESS"].mode()
+        xrp_tok = xrp_tok.iloc[0] if len(xrp_tok) else XRP_TOKEN
+        amt = extra[miss].map(lambda x: x["Amount"])
+        intent = pd.DataFrame({
+            "V": amt.map(lambda a: float(a) / 1e6 if isinstance(a, (str, int, float)) else float(a.get("value", "nan"))),
+            "SYMBOL": amt.map(lambda a: "XRP" if not isinstance(a, dict) else a.get("currency")),
+            "TOKEN_ADDRESS": amt.map(lambda a: xrp_tok if not isinstance(a, dict) else a.get("issuer")),
+            "H": e.loc[miss, "TS"] // HOUR}, index=amt.index)
+        intent = intent.reset_index().merge(r, on=["H", *key], how="left").set_index("TRANSACTION_HASH")
+        med = r.groupby(key)["USD_PRICE"].median()
+        fill = intent.join(med.rename("P2"), on=key)
+        usd = fill.V * fill.USD_PRICE.fillna(fill.P2)
+        e.loc[usd.index, "USD_SENT"] = usd
+        e.loc[usd.index, "USD_RECV"] = usd
+    if VIRTUAL_TAGS:
+        indeg = e.groupby("DST").SRC.nunique()
+        busy = set(indeg.index[indeg > 50])
+        tag = pd.to_numeric(e.DEST_TAG, errors="coerce")
+        virt = tag.notna() & e.DST.isin(busy)
+        e.loc[virt, "DST"] = e.loc[virt, "DST"] + ":" + tag[virt].astype("int64").astype(str)
     e["IS_CONV"] = (e.ASSET_SENT != e.ASSET_RECV).astype(int) & e.ASSET_SENT.notna()
     e["TR"] = e.TS - e.TS.min()  # seconds since the split's first transaction
     return e.drop(columns="DST_LEG")
@@ -298,7 +361,7 @@ def timing_features(e, L):
     f["dst_fwd_ratio"] = L.NEXT_USD / e.USD_RECV
     f["fwd_both"] = (f.src_fwd_ratio.between(0.9, 1.01) & f.dst_fwd_ratio.between(0.9, 1.01)).astype(int)
     ok = e.SUCCESS.eq(1).to_numpy()
-    for w, tag in ((HOUR, "1h"), (6 * HOUR, "6h"), (DAY, "24h")):
+    for w, tag in ((300, "5m"), (HOUR, "1h"), (6 * HOUR, "6h"), (DAY, "24h")):
         so = win_stats(e.SRC.where(ok).to_numpy(), e.TR.to_numpy(), e.USD_SENT.to_numpy(), w)
         di = win_stats(e.DST.where(ok).to_numpy(), e.TR.to_numpy(), e.USD_RECV.to_numpy(), w)
         f[f"src_out_n_{tag}"], f[f"src_out_cv_{tag}"] = so[:, 0], so[:, 2]
@@ -385,6 +448,125 @@ def match_features(e, M):
     return f
 
 
+def conv_features(e):
+    """Currency behaviour: issuer swaps (USD from one issuer to USD from another), symbol changes, 3-leg
+    paths, and each wallet's habits across all its payments."""
+    f = pd.DataFrame(index=e.index)
+    sym = lambda a: a.astype(str).str.split(":").str[-1]
+    ss, rs, has = sym(e.ASSET_SENT), sym(e.ASSET_RECV), e.ASSET_SENT.notna()
+    f["issuer_swap"] = ((ss == rs) & (e.ASSET_SENT != e.ASSET_RECV) & has).astype(int)
+    f["symbol_change"] = ((ss != rs) & has).astype(int)
+    f["three_legs"] = (e.N_LEGS >= 3).astype(int)
+    for role, r in (("SRC", "s"), ("DST", "d")):
+        g = pd.DataFrame({"a": e[role], "conv": e.IS_CONV, "swap": f.issuer_swap, "l3": f.three_legs}).groupby("a")
+        f[f"{r}_conv_share"] = g.conv.transform("mean")
+        f[f"{r}_swap_share"] = g.swap.transform("mean")
+        f[f"{r}_3leg_share"] = g.l3.transform("mean")
+    assets = pd.concat([pd.DataFrame({"a": e.SRC, "x": e.ASSET_SENT}), pd.DataFrame({"a": e.DST, "x": e.ASSET_RECV})]).dropna()
+    na = assets.groupby("a").x.nunique()
+    f["s_n_assets"], f["d_n_assets"] = e.SRC.map(na), e.DST.map(na)
+    return f
+
+
+def memo_keys(e):
+    txt = e.MEMO_TEXT.fillna("").astype(str)
+    prefix = txt.str.extract(r"^\s*([A-Za-z]+)", expand=False).str.upper()
+    prefix = prefix.where(prefix.notna(), np.where(txt.eq(""), "<none>", "<other>"))
+    pattern = txt.str.replace(r"[A-Za-z]+", "A", regex=True).str.replace(r"[0-9]+", "9", regex=True)
+    return prefix, pattern.where(txt.ne(""), "<none>")
+
+
+def memo_features(e):
+    prefix, pattern = memo_keys(e)
+    f = pd.DataFrame(index=e.index)
+    f["memo_len"] = e.MEMO_TEXT.fillna("").astype(str).str.len()
+    f["memo_prefix_freq"] = prefix.map(prefix.value_counts(normalize=True))
+    f["memo_pattern_freq"] = pattern.map(pattern.value_counts(normalize=True))
+    f["memo_pattern_senders"] = pattern.map(pd.DataFrame({"p": pattern, "s": e.SRC}).groupby("p").s.nunique())
+    f["src_memo_share"] = e.HAS_MEMO.groupby(e.SRC).transform("mean")
+    return f
+
+
+def memo_target_encoding(e_tr, e_te, y, groups, k=20):
+    """Laundering rate per memo prefix and pattern, learned from training labels. Out-of-fold on train
+    (same folds as the model), full-train on test, smoothed towards the base rate."""
+    (ptr, qtr), (pte, qte) = memo_keys(e_tr), memo_keys(e_te)
+    prior = y.mean()
+
+    def enc(fit, yf, apply):
+        st = pd.DataFrame({"k": fit.to_numpy(), "y": yf.to_numpy()}).groupby("k").y.agg(["sum", "count"])
+        return apply.map((st["sum"] + k * prior) / (st["count"] + k)).fillna(prior).to_numpy()
+    out_tr, out_te = pd.DataFrame(index=e_tr.index), pd.DataFrame(index=e_te.index)
+    for name, ktr, kte in (("memo_prefix_te", ptr, pte), ("memo_pattern_te", qtr, qte)):
+        col = np.zeros(len(e_tr))
+        for a, b in GroupKFold(n_splits=5).split(e_tr, y, groups):
+            col[b] = enc(ktr.iloc[a], y.iloc[a], ktr.iloc[b])
+        out_tr[name], out_te[name] = col, enc(ktr, y, kte)
+    return out_tr, out_te
+
+
+def probe_features(e):
+    """Failed attempts: a sender that failed in the hour before, and failures followed by a success."""
+    f = pd.DataFrame(index=e.index)
+    failed = e.SUCCESS.eq(0).to_numpy()
+    codes = pd.Index(pd.unique(e.SRC))
+    fe, ok = e[failed], e[~failed]
+    f["src_failed_1h_before"] = window_sum(fe.SRC.to_numpy(), fe.TR.to_numpy(), np.ones(len(fe)), e.SRC.to_numpy(),
+                                           e.TR.to_numpy(dtype=float) - 1, HOUR, codes)
+    after = window_sum(ok.SRC.to_numpy(), ok.TR.to_numpy(), np.ones(len(ok)), e.SRC.to_numpy(),
+                       e.TR.to_numpy(dtype=float) + HOUR, HOUR, codes)
+    f["failed_then_success_1h"] = np.where(failed, after, np.nan)
+    return f
+
+
+def subset_features(e, hubs, window=48 * HOUR, k=6):
+    """Split-aware matching: do 1-3 of the sender's recent inflows add up to this payment, and do 1-3 of
+    the receiver's next outflows add up to what it received? Catches peels, splits and merges."""
+    from itertools import combinations
+    combos = {n: [np.array(c) for r in range(1, min(3, n) + 1) for c in combinations(range(n), r)] for n in range(1, k + 1)}
+    ok = e.SUCCESS.eq(1) & e.USD_SENT.notna()
+    g = e[ok & e.DST.notna()]
+    inflow = {a: (x.TS.to_numpy(), x.USD_RECV.to_numpy()) for a, x in g.sort_values("TS").groupby("DST", sort=False)}
+    outflow = {a: (x.TS.to_numpy(), x.USD_SENT.to_numpy()) for a, x in e[ok].sort_values("TS").groupby("SRC", sort=False)}
+
+    def best(ts, vs, lo, hi, target, last):
+        i0, i1 = np.searchsorted(ts, lo, "left"), np.searchsorted(ts, hi, "right")
+        sel = vs[max(i0, i1 - k):i1] if last else vs[i0:min(i1, i0 + k)]
+        if len(sel) == 0 or not target > 0:
+            return np.nan, np.nan
+        errs = [(abs(sel[c].sum() - target) / target, len(c)) for c in combos[len(sel)]]
+        return min(errs)
+    n = len(e)
+    in_err, in_k, out_err, out_k = (np.full(n, np.nan) for _ in range(4))
+    for i, (sr, ds, t, vs, vr, good) in enumerate(zip(e.SRC, e.DST, e.TS, e.USD_SENT, e.USD_RECV, ok)):
+        if not good:
+            continue
+        if sr in inflow and sr not in hubs:
+            ts, v = inflow[sr]
+            in_err[i], in_k[i] = best(ts, v, t - window, t - 1, vs, True)
+        if ds in outflow and ds not in hubs:
+            ts, v = outflow[ds]
+            out_err[i], out_k[i] = best(ts, v, t + 1, t + window, vr, False)
+    return pd.DataFrame({"in_subset_err": in_err, "in_subset_k": in_k, "out_subset_err": out_err, "out_subset_k": out_k}, index=e.index)
+
+
+def dormancy_features(e):
+    """Sleepers waking up: how long the sender was idle before this payment, and how idle the other
+    wallets paying the same receiver within +-2h were."""
+    act = pd.concat([pd.DataFrame({"ACC": e.SRC, "T": e.TS}), pd.DataFrame({"ACC": e.DST, "T": e.TS})]).dropna()
+    act = act.drop_duplicates().sort_values("T")
+    q = e.reset_index()[["TRANSACTION_HASH", "SRC", "TS"]].sort_values("TS")
+    m = pd.merge_asof(q, act.rename(columns={"T": "PREV_T"}), left_on="TS", right_on="PREV_T", left_by="SRC", right_by="ACC",
+                      direction="backward", allow_exact_matches=False).set_index("TRANSACTION_HASH")
+    f = pd.DataFrame(index=e.index)
+    f["src_idle_h"] = ((m.TS - m.PREV_T) / HOUR).reindex(e.index)
+    li = np.log1p(f.src_idle_h.fillna(24 * 7)).to_numpy()
+    w = win_stats(e.DST.to_numpy(), e.TR.to_numpy(), li, 2 * HOUR)
+    f["dst_cohort_idle_2h"] = w[:, 1] / w[:, 0]
+    f["dst_cohort_n_2h"] = w[:, 0]
+    return f
+
+
 def hubs_of(acct, q=0.995):
     return set(acct.index[acct.degree > max(acct.degree.quantile(q), 50)])
 
@@ -465,14 +647,17 @@ def iforest_features(e, acct):
     return pd.DataFrame({"s_iforest": e.SRC.map(score), "d_iforest": e.DST.map(score)}, index=e.index)
 
 
-BLOCKS = ["tx", "account", "history", "timing", "chains", "match", "cycles", "sg", "graph", "iforest"]
+BLOCKS = ["tx", "account", "history", "timing", "chains", "match", "subset", "cycles", "sg", "graph", "iforest", "conv",
+          "memo", "probe", "dormancy"]
 
 
 def features(e, drop=()):
     acct, L = account_table(e), links(e)
     hubs = hubs_of(acct)
     M = matched_links(e, hubs)
-    make = {"match": lambda: match_features(e, M), "tx": lambda: tx_features(e), "account": lambda: account_features(e, acct),
+    make = {"match": lambda: match_features(e, M), "conv": lambda: conv_features(e), "memo": lambda: memo_features(e),
+            "probe": lambda: probe_features(e), "subset": lambda: subset_features(e, hubs),
+            "dormancy": lambda: dormancy_features(e), "tx": lambda: tx_features(e), "account": lambda: account_features(e, acct),
             "history": lambda: history_features(e, acct, L), "timing": lambda: timing_features(e, L),
             "chains": lambda: chain_features(e, L), "cycles": lambda: cycle_features(e, hubs),
             "sg": lambda: sg_features(e, hubs), "graph": lambda: graph_features(e, acct, hubs),
@@ -483,6 +668,10 @@ def features(e, drop=()):
             t = time.time(); parts.append(make[b]()); log(f"  {b:8s} {parts[-1].shape[1]:3d} cols  {time.time() - t:4.1f}s")
     X = pd.concat(parts, axis=1).replace([np.inf, -np.inf], np.nan).astype(float)
     return X, {"L": L, "M": M, "hubs": hubs}
+
+
+LOCAL_STACK = False  # (--local-stack) add +-24h neighbour scores
+OPTIONAL = {"subset", "dormancy"}  # (--add) built, but did not help on either practice set
 
 
 def stack_features(e, L, M, score):
@@ -504,6 +693,13 @@ def stack_features(e, L, M, score):
     out["stk_next_out"] = p.reindex(L.NEXT_H).to_numpy()
     out["stk_mprev"] = p.reindex(M.MPREV_H).to_numpy()
     out["stk_mnext"] = p.reindex(M.MNEXT_H).to_numpy()
+    # time-local: the same wallet's other payments within +-24h only (warm mules live normal lives too)
+    if LOCAL_STACK:
+        lng = pd.concat([pd.DataFrame({"ACC": e.SRC, "TR": e.TR, "p": p, "role": 0}),
+                         pd.DataFrame({"ACC": e.DST, "TR": e.TR, "p": p, "role": 1})])
+        w = win_stats(lng.ACC.to_numpy(), lng.TR.to_numpy(), lng.p.to_numpy(), DAY)
+        loc = (w[:, 1] - lng.p.to_numpy()) / np.where(w[:, 0] > 1, w[:, 0] - 1, np.nan)
+        out["stk_src_local24"], out["stk_dst_local24"] = loc[:len(e)], loc[len(e):]
     pair = pd.DataFrame({"SRC": e.SRC, "DST": e.DST, "p": p})
     g = pair.groupby(["SRC", "DST"]).p
     out["stk_pair_mean"] = (g.transform("sum") - p) / (g.transform("size") - 1).replace(0, np.nan)
@@ -588,11 +784,18 @@ def main():
     ap.add_argument("--stack", type=int, default=2, help="stacking rounds (0 = none)")
     ap.add_argument("--seeds", type=int, default=3); ap.add_argument("--fast", action="store_true")
     ap.add_argument("--xgb", action="store_true"); ap.add_argument("--drop", default="")
+    ap.add_argument("--stack-dropout", type=float, default=0.0, help="share of stacking values hidden while training")
+    ap.add_argument("--vtags", action="store_true", help="split busy receivers per destination tag")
+    ap.add_argument("--local-stack", action="store_true", help="add +-24h neighbour scores")
+    ap.add_argument("--add", default="", help="optional blocks to switch on: subset,dormancy")
     ap.add_argument("--test-labels", help="mock data only: score the output"); ap.add_argument("--dump", action="store_true")
     a = ap.parse_args()
     if a.fast:
         a.stack, a.seeds = min(a.stack, 1), 1
     drop = set(filter(None, a.drop.split(",")))
+    global VIRTUAL_TAGS, LOCAL_STACK
+    VIRTUAL_TAGS, LOCAL_STACK = a.vtags, a.local_stack
+    drop |= OPTIONAL - set(filter(None, a.add.split(",")))
     e_tr, e_te = build_edges(*load_split(a.train)), build_edges(*load_split(a.test))
     y = load_labels(a.train).reindex(e_tr.index).fillna(0).astype(int)
     log(f"train {len(e_tr)} tx ({y.mean():.2%} suspicious, {y.sum()}), test {len(e_te)} tx")
@@ -600,10 +803,16 @@ def main():
     log("features test:"); Ft, ctx_t = features(e_te, drop)
     Ft = Ft.reindex(columns=F.columns)
     groups = scenario_groups(e_tr, y, ctx["hubs"])
+    if "memo" not in drop and e_tr.HAS_MEMO.any():
+        te_tr, te_te = memo_target_encoding(e_tr, e_te, y, groups)
+        F, Ft = pd.concat([F, te_tr], axis=1), pd.concat([Ft, te_te], axis=1)
     X, Xt, history = F, Ft, []
     for r in range(a.stack + 1):
         if r:
-            X = pd.concat([F, stack_features(e_tr, ctx["L"], ctx["M"], oof)], axis=1)
+            S = stack_features(e_tr, ctx["L"], ctx["M"], oof)
+            if a.stack_dropout:  # hide some neighbour scores so the model keeps using its own evidence
+                S = S.mask(np.random.default_rng(a.seed + r).random(S.shape) < a.stack_dropout)
+            X = pd.concat([F, S], axis=1)
             Xt = pd.concat([Ft, stack_features(e_te, ctx_t["L"], ctx_t["M"], pred)], axis=1)
         oof, rounds = cv_oof(X, y, groups, a.seed)
         last = r == a.stack
