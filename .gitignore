@@ -1,0 +1,8 @@
+.venv/
+data/
+mock/
+runs/
+*.parquet
+submission*.csv
+__pycache__/
+*.zip
