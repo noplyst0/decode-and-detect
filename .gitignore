@@ -6,3 +6,4 @@ runs/
 submission*.csv
 __pycache__/
 *.zip
+briefing/
