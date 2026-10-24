@@ -26,6 +26,7 @@ mock's hidden test week, which has two shapes never seen in training (irregular,
 |---|---|---|---|---|---|
 | 10:52 | (scenario CV) | sub v1 | 50.2 | 58.1 | --fast --stack 0, CV folds by organiser scenario_id |
 | 10:58 | 428daff | sub v2 | 54.5 | 59.9 | + burst block (wallet-sharing groups within 2/5/15/45 min); --drop memo,probe |
+| 11:35 | b028bb6 | sub v4 | 56.64 | ? | + Gemini motif features (src/gemini_feats.py, +0.9 CV over 2 seeds) + XGB blend 0.5 |
 | 11:08 | 0ed7435 | sub v3 | 56.75 | **62.0** | + burst shape/conversion, LGB lr .02/15 leaves/min_child 60, 5-seed avg (AUC .90; medium 0% in top 1%) |
 
 ## Real data facts (10-24 morning)
@@ -34,3 +35,6 @@ mock's hidden test week, which has two shapes never seen in training (irregular,
 - Easy flows finish in minutes (gap ~1 min, pass on ~97%); look-alikes take ~1 h (~89% kept). Medium ~ look-alike.
 - Hard = 100 positives hidden in each 10k relay family, ~7 scenarios each in train: not learnable, deprioritised.
 - LGB lr 0.02, 15 leaves, min_child 60: CV 56.4 vs 54.5 default.
+- Ablation (2 seeds): graph+history -3 AP (keep); iforest/sg, cycles/chains neutral; XGB blend +0.6; min_child 25 worse.
+- Gemini relay_report (train, labels used only for analysis): suspicious collectors pay out after an almost constant hold
+  (agg ~4.3 h, dist ~2.1 h, cv<0.15 vs ~0.7, AUC ~0.8) with steady per-episode pass-through. Only 6 scenarios/family.

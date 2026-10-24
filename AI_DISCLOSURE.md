@@ -8,3 +8,8 @@
 - Prompts: the Claude Code session transcript and the two Gemini prompts are exported and attached at the end of the day.
 - No organiser data was sent to any service other than those listed. No external transaction data was used.
 - Reproducibility limit: LLM outputs are not deterministic, but the submitted code is. `run.sh` reproduces the predictions exactly (fixed seeds).
+
+## During the event (24 Oct)
+- Gemini app, "4 Argon", thinking High: given only aggregate statistics (never the organisers' data), it wrote
+  `src/gemini_feats.py` (motif features, kept after a 2-seed A/B) and an analysis script whose aggregate output guided
+  the relay features. Prompts are in `docs/` and `gemini_in/`. We tested every suggestion before keeping it.
