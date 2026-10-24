@@ -59,4 +59,5 @@ if [ "${SELFTRAIN:-1}" = 1 ]; then   # test-week self-training (src/selftrain.py
   mv runs/final_ens_st.csv runs/final_ens.csv
 fi
 $PY src/smooth_sub.py --test data/test --sub runs/final_ens.csv --out submission.csv --w "${SMOOTH_W:-450}" --a "${SMOOTH_A:-0.5}"
+$PY -c "import pandas as pd; d = pd.read_csv('submission.csv'); d.sort_values('TRANSACTION_HASH').to_csv('submission.csv', index=False)"   # rows sorted by hash (scores unchanged)
 $PY src/check_submission.py submission.csv data/test
