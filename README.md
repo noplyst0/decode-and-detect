@@ -1,7 +1,7 @@
 # Decode & Detect: XRPL AI Hack entry
 
 Team name: TBD. Captain: TBD. Members: TBD.
-Submitted commit: `b028bb6`. Leaderboard AP: `[FILL]`.
+Submitted commit: `d3d5e6a`. Leaderboard AP: `[FILL]`.
 
 ## Reproduce
 `./run.sh` with the organiser data in `data/train` and `data/test` (seed 42). It builds a venv from
