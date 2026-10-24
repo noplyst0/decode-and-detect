@@ -1,6 +1,6 @@
 # Decode & Detect: XRPL AI Hack entry
 
-Team name: TBD. Captain: TBD. Members: TBD.
+Team name: Cloudee. Captain: Faizan Arif. Members: Faizan Arif, Ibrahim Zubair.
 Submitted commit: `d3d5e6a`. Leaderboard AP: `[FILL]`.
 
 ## Reproduce
