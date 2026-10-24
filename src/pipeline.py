@@ -647,6 +647,31 @@ def iforest_features(e, acct):
     return pd.DataFrame({"s_iforest": e.SRC.map(score), "d_iforest": e.DST.map(score)}, index=e.index)
 
 
+def tight_features(e, windows=(600, 1800)):
+    """Tight value conservation: planted flows forward almost exactly what arrived (hop ratio ~0.99), while fast
+    innocent look-alikes lose ~8% per hop. For each tx, look at the receiver's onward payments and the sender's
+    funding payments within a few minutes; measure the closest ratio and the split/merge-aware sum."""
+    c = pd.DataFrame({"h": np.arange(len(e)), "s": e.SRC.astype(str).to_numpy(), "d": e.DST.astype(str).to_numpy(),
+                      "t": e.TS.to_numpy(float), "ui": e.USD_RECV.to_numpy(float), "uo": e.USD_SENT.to_numpy(float)})
+    pair = c.merge(c, left_on="d", right_on="s", suffixes=("", "_n"))  # tx -> receiver's later payment
+    pair = pair[(pair.t_n > pair.t) & (pair.h_n != pair.h)]
+    pair["lr"] = np.abs(np.log(pair.uo_n / pair.ui))
+    f = pd.DataFrame(index=e.index)
+    for w in windows:
+        p = pair[pair.t_n - pair.t <= w]
+        m = w // 60
+        nxt = p.groupby("h").agg(best=("lr", "min"), n=("lr", "size"), tot=("uo_n", "sum"))
+        prv = p.groupby("h_n").agg(best=("lr", "min"), n=("lr", "size"), tot=("ui", "sum"))
+        f[f"tm{m}_next_best"] = nxt.best.reindex(c.h).to_numpy()
+        f[f"tm{m}_next_n"] = nxt.n.reindex(c.h).fillna(0).to_numpy()
+        f[f"tm{m}_next_sum_ratio"] = (nxt.tot.reindex(c.h).to_numpy() / c.ui.to_numpy())
+        f[f"tm{m}_prev_best"] = prv.best.reindex(c.h).to_numpy()
+        f[f"tm{m}_prev_n"] = prv.n.reindex(c.h).fillna(0).to_numpy()
+        f[f"tm{m}_prev_sum_ratio"] = (c.uo.to_numpy() / prv.tot.reindex(c.h).to_numpy())
+        f[f"tm{m}_both_best"] = np.fmax(f[f"tm{m}_next_best"], f[f"tm{m}_prev_best"])
+    return f
+
+
 def gemini_block(e):
     """Features designed by Gemini (Argon 4) from our aggregate findings only; see src/gemini_feats.py."""
     from gemini_feats import gemini_features
@@ -714,7 +739,7 @@ def burst_features(e, windows=(120, 300, 900, 2700)):
 
 
 BLOCKS = ["tx", "account", "history", "timing", "chains", "match", "subset", "cycles", "sg", "graph", "iforest", "conv",
-          "memo", "probe", "dormancy", "burst", "gemini", "relay", "repeat"]
+          "memo", "probe", "dormancy", "burst", "gemini", "relay", "repeat", "tight"]
 
 
 def features(e, drop=()):
@@ -727,7 +752,7 @@ def features(e, drop=()):
             "history": lambda: history_features(e, acct, L), "timing": lambda: timing_features(e, L),
             "chains": lambda: chain_features(e, L), "cycles": lambda: cycle_features(e, hubs),
             "sg": lambda: sg_features(e, hubs), "graph": lambda: graph_features(e, acct, hubs),
-            "iforest": lambda: iforest_features(e, acct), "burst": lambda: burst_features(e), "gemini": lambda: gemini_block(e), "relay": lambda: relay_block(e), "repeat": lambda: __import__("gemini_repeat").repeat_features(e)}
+            "iforest": lambda: iforest_features(e, acct), "burst": lambda: burst_features(e), "gemini": lambda: gemini_block(e), "relay": lambda: relay_block(e), "repeat": lambda: __import__("gemini_repeat").repeat_features(e), "tight": lambda: tight_features(e)}
     parts = []
     for b in BLOCKS:
         if b not in drop:
@@ -737,7 +762,7 @@ def features(e, drop=()):
 
 
 LOCAL_STACK = False  # (--local-stack) add +-24h neighbour scores
-OPTIONAL = {"subset", "dormancy", "relay", "repeat"}  # (--add) built, but did not help on either practice set
+OPTIONAL = {"subset", "dormancy", "relay", "repeat", "tight"}  # (--add) built, but did not help on either practice set
 
 
 def stack_features(e, L, M, score):
@@ -807,6 +832,23 @@ def family_aux(F, Ft, fam, groups, seed, rounds=150):
     return pd.DataFrame(oof, F.index, cols), pd.DataFrame(pt, Ft.index, cols)
 
 
+MOTIF_FAMILIES = {"bipartite", "chain", "cycle", "fan_in", "fan_out", "fan_out_in", "multi_stage", "random", "stack"}
+
+
+def twin_aux(F, Ft, y, fam, groups, seed, rounds=300):
+    """Specialist trained only on motif families, where every suspicious scenario has an innocent look-alike:
+    its out-of-fold score tells the main model how 'planted' a motif looks, versus a fast innocent twin."""
+    p = {**PARAMS, "seed": seed, "metric": "binary_logloss"}
+    motif = fam.isin(MOTIF_FAMILIES).to_numpy()
+    oof = np.full(len(F), np.nan)
+    for tr, va in GroupKFold(n_splits=5).split(F, y, groups):
+        t = tr[motif[tr]]
+        m = lgb.train(p, lgb.Dataset(F.iloc[t], y.iloc[t]), rounds)
+        oof[va] = m.predict(F.iloc[va])
+    pt = lgb.train(p, lgb.Dataset(F[motif], y[motif]), rounds).predict(Ft)
+    return pd.DataFrame({"twin_score": oof}, F.index), pd.DataFrame({"twin_score": pt}, Ft.index)
+
+
 def scenario_groups(e, y, hubs, scen=None):
     """CV groups: each connected laundering case (hubs excluded) is one group; normal payments group by sender.
     If the labels carry organiser scenario ids, those define the groups instead (both suspicious and look-alike)."""
@@ -844,12 +886,16 @@ def ap_eval(pred, data):
     return "ap", aps(data.get_label(), pred), True
 
 
+TRAIN_W = None  # optional per-row training weights (evaluation always uses every row, unweighted)
+
+
 def cv_oof(X, y, groups, seed, rounds=3000, folds=5):
     oof, best = np.zeros(len(y)), []
+    W = TRAIN_W if TRAIN_W is not None else np.ones(len(y))
     for tr, va in GroupKFold(n_splits=folds).split(X, y, groups):
         stop = os.environ.get("STOP_METRIC", "logloss")  # "logloss": smoother early stopping than AP on ~250 positives
         prm = {**PARAMS, "seed": seed, **({"metric": "binary_logloss"} if stop == "logloss" else {})}
-        m = lgb.train(prm, lgb.Dataset(X.iloc[tr], y.iloc[tr]), rounds,
+        m = lgb.train(prm, lgb.Dataset(X.iloc[tr], y.iloc[tr], weight=W[tr]), rounds,
                       valid_sets=[lgb.Dataset(X.iloc[va], y.iloc[va])], feval=None if stop == "logloss" else ap_eval,
                       callbacks=[lgb.early_stopping(100, verbose=False)])
         oof[va] = m.predict(X.iloc[va], num_iteration=m.best_iteration)
@@ -860,7 +906,7 @@ def cv_oof(X, y, groups, seed, rounds=3000, folds=5):
 def fit_predict(X, y, Xt, seed, rounds, n_seeds):
     preds = []
     for s in range(seed, seed + n_seeds):
-        m = lgb.train({**PARAMS, "seed": s}, lgb.Dataset(X, y), max(rounds, 50))
+        m = lgb.train({**PARAMS, "seed": s}, lgb.Dataset(X, y, weight=TRAIN_W), max(rounds, 50))
         preds.append(m.predict(Xt))
     return np.mean(preds, axis=0), m
 
@@ -917,6 +963,29 @@ def main():
             fa, fb = family_aux(F, Ft, fam.reindex(e_tr.index), groups, a.seed)
             F, Ft = pd.concat([F, fa], axis=1), pd.concat([Ft, fb], axis=1)
             log(f"family helper: {fa.shape[1]} out-of-fold family probabilities added")
+            if os.environ.get("TWIN_AUX", "0") == "1":
+                ta, tb = twin_aux(F, Ft, y, fam.reindex(e_tr.index), groups, a.seed)
+                F, Ft = pd.concat([F, ta], axis=1), pd.concat([Ft, tb], axis=1)
+                log("twin helper: out-of-fold suspicious-vs-look-alike score added")
+    wmode = os.environ.get("WEIGHTS", "none")
+    if wmode != "none" or os.environ.get("JOINT_AUX", "0") == "1":
+        lab = read_any(a.train, "label").set_index("TRANSACTION_HASH").reindex(e_tr.index)
+        lab.columns = [c.lower() for c in lab.columns]
+        aux = pd.DataFrame({"family": lab["family"], "difficulty": lab["difficulty"], "scenario_id": lab["scenario_id"]})
+        if os.environ.get("JOINT_AUX", "0") == "1":
+            from gemini_modelling import helper_joint_subtype
+            ja, jb = helper_joint_subtype(F, Ft, y, aux, groups, a.seed)
+            F, Ft = pd.concat([F, ja], axis=1), pd.concat([Ft, jb.reindex(columns=ja.columns)], axis=1)
+            log(f"joint helper: {ja.shape[1]} columns added")
+        global TRAIN_W
+        d = aux.difficulty.fillna("normal").to_numpy()
+        if wmode == "hard0":
+            TRAIN_W = np.where((y.to_numpy() == 1) & np.isin(d, ["hard"]), 0.0, 1.0)
+        elif wmode == "gemini":
+            from gemini_modelling import get_sample_weights_and_params
+            _, TRAIN_W, _ = get_sample_weights_and_params(y, aux, None, a.seed)
+        if TRAIN_W is not None:
+            log(f"training weights '{wmode}': {int((TRAIN_W == 0).sum())} rows at 0, mean {TRAIN_W.mean():.2f}")
     X, Xt, history = F, Ft, []
     for r in range(a.stack + 1):
         if r:
