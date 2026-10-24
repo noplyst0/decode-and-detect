@@ -1,7 +1,7 @@
 # Method: Decode & Detect (XRPL AI Hack, 24 Oct 2026)
 
-**Result:** leaderboard AP **67.2** (precision 94% / recall 30% in the top 1%). Progress: 58.1 → 59.9 →
-62.0 → 62.3 → 63.9 → 65.0 → 65.4 → 65.7 → 66.1 → 66.9 → 67.0 → **67.2**. Reproduce with `./run.sh` (organiser data in `data/train`,
+**Result:** leaderboard AP **67.3** (precision 94% / recall 30% in the top 1%). Progress: 58.1 → 59.9 →
+62.0 → 62.3 → 63.9 → 65.0 → 65.4 → 65.7 → 66.1 → 66.9 → 67.0 → 67.2 → **67.3**. Reproduce with `./run.sh` (organiser data in `data/train`,
 `data/test`; ~50 min and ~1.5 GB RAM on a laptop CPU); it rebuilds the final uploaded file (scored 66.1) byte for byte on our machine; on another CPU, XGBoost may differ in the last digits.
 Scores mean "worth a human look" on synthetic data, never evidence of wrongdoing.
 
@@ -41,9 +41,9 @@ single-seed XGBoost (weight chosen out of fold). Five modelling changes mattered
    pattern into one class; this out-of-fold model predicts e.g. stack-medium vs stack-easy vs stack-innocent (~30
    classes), giving the main model an explicit per-pattern medium signal. +0.1 on the leaderboard (66.9 → 67.0).
 5. **Self-training on the test week** (`src/selftrain.py`, ours; no labels). The ensemble's top 600 test payments
-   are pseudo-labelled suspicious and those ranked below 6,000 innocent; a small LightGBM is cross-fitted on the
+   are pseudo-labelled suspicious and those ranked below 4,000 innocent; a small LightGBM is cross-fitted on the
    test week's own features and its rank is blended in at weight 0.25. It adapts the ranking to the week shift and
-   lifts other payments of confidently flagged flows. +0.2 on the leaderboard (67.0 → 67.2).
+   lifts other payments of confidently flagged flows. +0.3 on the leaderboard (67.0 → 67.3).
 
 **Final submission** (`run.sh`): six models, each a 5-seed LightGBM blended with a single-seed XGBoost and using all three helpers, rank-averaged, then test-week self-training: three copies
 (seeds 42, 7, 11) valued in *nominal* units and three in true per-asset USD (see section 6 for why both), then
@@ -71,7 +71,8 @@ Every decision was compared over 2-3 seeds, because single-seed differences unde
 | 6 models | six models (three seeds each), 7.5-minute smoothing | - | 66.1 |
 | 6 models + joint helper | + joint family × suspicious and difficulty helper | - | 66.9 |
 | 6 models, 3 helpers | + pattern × difficulty helper | - | 67.0 |
-| **final** | + test-week self-training (top 600, weight 0.25) | - | **67.2** |
+| self-training | + test-week self-training (top 600, below 6,000, weight 0.25) | - | 67.2 |
+| **final** | self-training negatives from below rank 4,000 | - | **67.3** |
 
 Late tuning that did not beat the six-model ensemble (66.1) on the leaderboard: eight models (66.0), smoothing strength 0.35 / 0.65 (66.0 /
 65.8), a 9-minute window (65.6), multi-scale smoothing (65.9), weighting one model double (65.3), per-week

@@ -1,7 +1,7 @@
 # Decode & Detect: XRPL AI Hack entry
 
 Team name: Cloudee. Captain: Faizan Arif. Members: Faizan Arif, Ibrahim Zubair.
-Submitted commit: `704218b`. Leaderboard AP: `67.2`.
+Submitted commit: `704218b`. Leaderboard AP: `67.3`.
 
 ## Reproduce
 `./run.sh` with the organiser data in `data/train` and `data/test` (seeds 42, 7 and 11, set in run.sh). It builds a venv from
@@ -11,10 +11,10 @@ Submitted commit: `704218b`. Leaderboard AP: `67.2`.
 Computing: Python 3.13, CPU only, about 50 minutes and ~1.5 GB peak RAM on an Apple M4 laptop. macOS needs
 `brew install libomp` for LightGBM. No external services, APIs or network access at run time.
 
-## Other leaderboard runs at 67.2 (rounded) and how to rebuild each
-The submitted file is the `./run.sh` default. Test uploads that also showed 67.2 rebuild with the same code:
-- self-training weight 0.15 or 0.20: `SELFTRAIN_L=0.15 ./run.sh`, `SELFTRAIN_L=0.2 ./run.sh`
-- medium-weighted models: `FINAL="v5fm v5fms7 v5fms11 v6cfm v6cfms7 v6cfms11" ./run.sh`
+## Other leaderboard runs and how to rebuild each
+The submitted file (67.3) is the `./run.sh` default. Runs at 67.2 rebuild with the same code:
+- negatives below rank 6,000: `SELFTRAIN_N=6000 ./run.sh` (also with `SELFTRAIN_L=0.15` or `0.2`)
+- medium-weighted models: `SELFTRAIN_N=6000 FINAL="v5fm v5fms7 v5fms11 v6cfm v6cfms7 v6cfms11" ./run.sh`
 Without self-training (67.0): `SELFTRAIN=0 ./run.sh`; other 67.0 runs: `SELFTRAIN=0 SMOOTH_W=500 ./run.sh`,
 `SELFTRAIN=0 SMOOTH_A=0.45 ./run.sh`, `SELFTRAIN=0 FINAL="v5fd v5fds7 v5fds11 v6cfd v6cfds7 v6cfds11 v5jm v5jms7 v6cjm v6cjms7" ./run.sh`.
 Earlier test uploads used a placeholder code ZIP; the final entry is this commit.

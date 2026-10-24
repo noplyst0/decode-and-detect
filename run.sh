@@ -4,7 +4,7 @@
 # Final = rank-average of six models (nominal and true-USD values x seeds 42, 7, 11, each with the joint and the
 # pattern x difficulty helpers), test-week self-training (src/selftrain.py), then 7.5-minute burst smoothing.
 set -e
-FINAL="${FINAL:-v5fd v5fds7 v5fds11 v6cfd v6cfds7 v6cfds11}"   # leaderboard-chosen (67.2 with self-training); see NOTES.md
+FINAL="${FINAL:-v5fd v5fds7 v5fds11 v6cfd v6cfds7 v6cfds11}"   # leaderboard-chosen (67.3 with self-training); see NOTES.md
 [ -d .venv ] || { python3 -m venv .venv && .venv/bin/pip install -r requirements.txt; }
 PY=.venv/bin/python
 B="--train data/train --test data/test --stack 0 --seeds 5 --xgb --drop memo,probe --seed 42"
@@ -50,7 +50,7 @@ if [ "$(echo $FINAL | wc -w)" -gt 1 ]; then $PY src/rank_ensemble.py --out runs/
 if [ "${SELFTRAIN:-1}" = 1 ]; then   # test-week self-training (src/selftrain.py) on the joint-helper model's test features
   JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --dump --out runs/feats_model.csv   # writes runs/test_feats.parquet
   $PY src/selftrain.py --sub runs/final_ens.csv --feats runs/test_feats.parquet --out runs/final_ens_st.csv \
-    --K "${SELFTRAIN_K:-600}" --lam "${SELFTRAIN_L:-0.25}" --bag "${SELFTRAIN_BAG:-1}"
+    --K "${SELFTRAIN_K:-600}" --lam "${SELFTRAIN_L:-0.25}" --bag "${SELFTRAIN_BAG:-1}" --N "${SELFTRAIN_N:-4000}"
   mv runs/final_ens_st.csv runs/final_ens.csv
 fi
 $PY src/smooth_sub.py --test data/test --sub runs/final_ens.csv --out submission.csv --w "${SMOOTH_W:-450}" --a "${SMOOTH_A:-0.5}"

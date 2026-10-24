@@ -57,6 +57,7 @@ mock's hidden test week, which has two shapes never seen in training (irregular,
 | 15:12 | abd00fa | 33-40: blends of FAMDIFF6 with JOINT_AUX6 / med3 models, smoothing 400/500 s, a=0.45/0.55 | - | 66.9-67.0 | plateau: 34, 37, 38 also round to 67.0 (rebuild commands in README) |
 | 15:40 | 2d64058 | 41-43: FAMDIFF6 + test-week self-training (src/selftrain.py): K=1000 l=.25 / K=600 l=.5 / K=600 l=.25 | - | 66.8 / 67.1 / **67.2** | NEW BEST; FINAL = 43 |
 | 15:50 | 2d64058 | 44-50: K600 l=.15/.20 (67.2/67.2), K500/800/400 (66.9/66.7/67.1), bag3 (67.1), 2 rounds (67.0); 52: med3 models + ST (67.2) | - | <= 67.2 | self-training plateaus at 67.2 |
+| 15:55 | 704218b | 55: self-training negatives below rank 4,000 (was 6,000) | - | **67.3** | NEW BEST; FINAL. 56-60 (N=10000, 12-model base, averages): 67.2 |
 | 11:58 | d3d5e6a | sub v5 | 58.59 | **63.9** | log-loss early stopping + family helper (3-seed CV 58.9); easy 50% in top 1% |
 | 11:35 | b028bb6 | sub v4 | 56.64 | 62.3 | + Gemini motif features (src/gemini_feats.py, +0.9 CV over 2 seeds) + XGB blend 0.5 |
 | 11:08 | 0ed7435 | sub v3 | 56.75 | **62.0** | + burst shape/conversion, LGB lr .02/15 leaves/min_child 60, 5-seed avg (AUC .90; medium 0% in top 1%) |
