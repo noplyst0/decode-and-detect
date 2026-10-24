@@ -54,7 +54,8 @@ if [ "${SELFTRAIN:-1}" = 1 ]; then   # test-week self-training (src/selftrain.py
     JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --dump --out runs/feats_model.csv   # writes runs/test_feats.parquet
   fi
   $PY src/selftrain.py --sub runs/final_ens.csv --feats runs/test_feats.parquet --out runs/final_ens_st.csv \
-    --K "${SELFTRAIN_K:-600}" --lam "${SELFTRAIN_L:-0.25}" --bag "${SELFTRAIN_BAG:-1}" --N "${SELFTRAIN_N:-4000}"
+    --K "${SELFTRAIN_K:-600}" --lam "${SELFTRAIN_L:-0.25}" --bag "${SELFTRAIN_BAG:-1}" --N "${SELFTRAIN_N:-4000}" \
+    --leaves "${SELFTRAIN_LEAVES:-15}" --rounds "${SELFTRAIN_ROUNDS:-200}" ${SELFTRAIN_MIXED:+--train-feats runs/oof.parquet}
   mv runs/final_ens_st.csv runs/final_ens.csv
 fi
 $PY src/smooth_sub.py --test data/test --sub runs/final_ens.csv --out submission.csv --w "${SMOOTH_W:-450}" --a "${SMOOTH_A:-0.5}"
