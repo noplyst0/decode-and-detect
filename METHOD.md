@@ -59,6 +59,14 @@ Tried and rejected after testing (2-3 seeds each): stacking on neighbour scores,
 - Planted collectors in the relay families pay out after an almost constant hold (~4.3 h, variation < 15% vs ~70% for
   innocent relays), but rebuilding those episodes blind on the test week was too noisy to help.
 
+- An independent Claude Code review session found that every asset had been priced as XRP (the rates file keys assets as
+  `issuer:currency`). Fixing it raised CV by ~2.4 but *lowered* the leaderboard by ~1, so prices seem to shift between
+  weeks; the final ensemble averages a model on nominal values with one on true USD, which beat both (64.1 vs 63.9).
+- **Burst smoothing** (from the review): each payment's score is averaged with the best score among payments sharing a
+  wallet within 5 minutes, so one confident payment in a fast flow lifts the rest. +0.7 to +1.2 on the leaderboard.
+- Medium cases rank *below* their innocent look-alikes (AUC 0.40 inside the motif families): they are slower than the
+  look-alikes, and the model learned "fast means suspicious" from the easy cases. 27 training scenarios cannot fix that.
+
 ## 7. Limits
 Synthetic data; medium and hard cases are mostly missed (0% of them in the top 1%); the 25 ambiguous cases are random
 by design. AI use (Claude Code, Gemini) is listed in `AI_DISCLOSURE.md` with the prompts in `docs/` and `gemini_in/`.

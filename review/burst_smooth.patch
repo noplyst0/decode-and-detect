@@ -1,0 +1,37 @@
+--- a/src/pipeline.py
++++ b/src/pipeline.py
+@@ -932,6 +932,22 @@
+ 
+ def rank01(a):
+     return pd.Series(a).rank(pct=True).to_numpy()
++
++
++def burst_smooth(e, score, w=300, a=0.5):
++    """Blend each payment's rank with the best rank in its w-second burst (payments linked through a shared wallet
++    within w seconds). Easy flows finish in minutes, so one confidently scored payment lifts the rest of its flow."""
++    from scipy.sparse import coo_matrix
++    from scipy.sparse.csgraph import connected_components
++    n, rows = len(e), np.arange(len(e))
++    ev = pd.DataFrame({"w": np.r_[e.SRC.astype(str).to_numpy(), e.DST.astype(str).to_numpy()],
++                       "t": np.r_[e.TS.to_numpy(float), e.TS.to_numpy(float)], "r": np.r_[rows, rows]})
++    ev = ev[ev.w != "nan"].sort_values(["w", "t"])
++    k = (ev.w.to_numpy()[1:] == ev.w.to_numpy()[:-1]) & (np.diff(ev.t.to_numpy()) <= w)
++    g = coo_matrix((np.ones(k.sum()), (ev.r.to_numpy()[:-1][k], ev.r.to_numpy()[1:][k])), shape=(n, n))
++    lab = connected_components(g, directed=False)[1]
++    top = pd.Series(score).groupby(lab).transform("max").to_numpy()
++    return ((1 - a) * rank01(score) + a * rank01(top) + 1e-9 * score) / (1 + 1e-9)
+ 
+ 
+ def main():
+@@ -1014,6 +1030,11 @@
+             final = (1 - best_w) * rank01(pred) + best_w * rank01(xp) + 1e-6 * pred
+             final_oof = (1 - best_w) * rank01(oof) + best_w * rank01(xo)
+         log(f"blend weight for xgboost: {best_w}  ->  CV AP {100 * aps(y, final_oof):.2f}")
++    if os.environ.get("SMOOTH", "300") != "0":  # 5-min burst smoothing; SMOOTH=0 turns it off
++        w = int(os.environ.get("SMOOTH", "300"))
++        before = 100 * aps(y, final_oof)
++        final_oof, final = burst_smooth(e_tr, final_oof, w), burst_smooth(e_te, final, w)
++        log(f"burst smoothing ({w}s): CV AP {before:.2f} -> {100 * aps(y, final_oof):.2f}")
+     imp = pd.Series(model.feature_importance("gain"), model.feature_name()).sort_values(ascending=False)
+     log("top features: " + ", ".join(imp.index[:15]))
+     sub = pd.DataFrame({"TRANSACTION_HASH": e_te.index, "score": np.clip(final, 0, 1)})
