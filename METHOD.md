@@ -1,6 +1,6 @@
 # Method: Decode & Detect (XRPL AI Hack, 24 Oct 2026)
 
-**Result:** leaderboard AP **66.1** (precision 92% / recall 30% in the top 1%, ROC AUC 0.91). Progress: 58.1 → 59.9 →
+**Result:** leaderboard AP **66.1** (precision 93% / recall 30% in the top 1%, ROC AUC 0.91). Progress: 58.1 → 59.9 →
 62.0 → 62.3 → 63.9 → 65.0 → 65.4 → 65.7 → **66.1**. Reproduce with `./run.sh` (organiser data in `data/train`,
 `data/test`; ~15 min and ~1 GB RAM on a laptop CPU); it rebuilds the uploaded file byte for byte.
 Scores mean "worth a human look" on synthetic data, never evidence of wrongdoing.
@@ -61,7 +61,9 @@ Every decision was compared over 2-3 seeds, because single-seed differences unde
 | **final** | six models (three seeds each), 7.5-minute smoothing | - | **66.1** |
 
 Late tuning that did not beat 66.1 on the leaderboard: eight models (66.0), smoothing strength 0.35 / 0.65 (66.0 /
-65.8), a 9-minute window (65.6), multi-scale smoothing (65.9), weighting one model double (65.3).
+65.8), a 9-minute window (65.6), multi-scale smoothing (65.9), weighting one model double (65.3), per-week
+feature percentiles (65.8 vs 65.4 with two models, but 65.7 with six), the six models plus their six week-normalised
+twins (66.1, a tie, so the simpler six-model ensemble stays).
 
 Tried and rejected after testing (2-3 seeds each): stacking on neighbour scores, memo and failed-payment features
 (the real data has none), Gemini's relay, repeat-burst and twin-specialist ideas, looser trees.
@@ -83,4 +85,6 @@ Tried and rejected after testing (2-3 seeds each): stacking on neighbour scores,
 
 ## 7. Limits
 Synthetic data; medium and hard cases are mostly missed (0% of them in the top 1%); the 25 ambiguous cases are random
-by design. AI use (Claude Code, Gemini) is listed in `AI_DISCLOSURE.md` with the prompts in `docs/` and `gemini_in/`.
+by design. CV for the family helper is slightly optimistic: its out-of-fold predictions reuse the main model's folds
+instead of nested cross-fitting, so a validation fold's labels reach the helper features of the other folds (the
+leaderboard, which never sees labels, is the number we trust). AI use (Claude Code, Gemini) is listed in `AI_DISCLOSURE.md` with the prompts in `docs/` and `gemini_in/`.

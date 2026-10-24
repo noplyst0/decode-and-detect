@@ -128,6 +128,8 @@ def usd_rates(rates):
         # Leaderboard-validated default: price every asset at the hour's first quoted rate (XRP, micro-USD), i.e.
         # values ~ nominal amounts. True per-asset USD ("USD_MODE=true") wins CV by ~2 AP but loses ~1 AP on the
         # test week (62.8 vs 63.9), so prices seem to shift between weeks. See NOTES.md.
+        if "ASSET" in r.columns:  # pick XRP explicitly; in the organiser files it is the hour's first row (same output)
+            r = r[r["ASSET"].astype(str).eq("XRP")]
         r = r.sort_values("H", kind="stable").drop_duplicates("H")
         return r[["H", pcol]].rename(columns={pcol: "USD_PRICE"}), []
     if "MICRO" in pcol:  # PRICE_MICRO_USD: millionths of a dollar per asset unit (found by the review session)
