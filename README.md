@@ -1,9 +1,16 @@
 # Decode & Detect: XRPL AI Hack entry
 
-Team: TBD (captain, members)
+Team name: TBD. Captain: TBD. Members: TBD.
+Submitted commit: `[FILL]`. Leaderboard AP: `[FILL]`.
 
-Run: `./run.sh` (expects organiser data in `data/train`, `data/test`; seed 42). Check the output before
-upload: `.venv/bin/python src/check_submission.py submission.csv data/test`.
+## Reproduce
+`./run.sh` with the organiser data in `data/train` and `data/test` (seed 42). It builds a venv from
+`requirements.txt` and writes `submission.csv`. Check the output before upload:
+`.venv/bin/python src/check_submission.py submission.csv data/test`.
 
-Submitted commit: `[FILL]`. Leaderboard AP: `[FILL]`. Results and method: `METHOD.md`.
-Licence: MIT. AI use: `AI_DISCLOSURE.md`.
+Computing: Python 3.13, CPU only, about 1 minute and ~1 GB peak RAM on an Apple M4 laptop. macOS needs
+`brew install libomp` for LightGBM. No external services, APIs or network access at run time.
+
+## Contents
+`submission.csv` (submitted predictions), `runs/log.csv` (validation results per run), `NOTES.md` (experiment
+log), `METHOD.md` (method report), `AI_DISCLOSURE.md` (AI models, prompts in `docs/`). Licence: MIT.
