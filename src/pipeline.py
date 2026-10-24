@@ -764,6 +764,11 @@ def features(e, drop=()):
         if b not in drop:
             t = time.time(); parts.append(make[b]()); log(f"  {b:8s} {parts[-1].shape[1]:3d} cols  {time.time() - t:4.1f}s")
     X = pd.concat(parts, axis=1).replace([np.inf, -np.inf], np.nan).astype(float)
+    if os.environ.get("NO_CONV", "0") == "1":
+        # README: "Asset and conversion choices do not inspect suspicious labels", and the test week converts more
+        # (50% of tx vs 41%), so conversion features are noise that shifts between weeks (review session finding)
+        X = X[[c for c in X.columns if not re.search(
+            r"conv|n_legs|n_assets|_is_xrp|recv_over_sent|nsym|swap|3leg|three_legs|symbol_change|asset", c)]]
     return X, {"L": L, "M": M, "hubs": hubs}
 
 
