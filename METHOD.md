@@ -1,8 +1,8 @@
 # Method: Decode & Detect (XRPL AI Hack, 24 Oct 2026)
 
-**Result:** leaderboard AP **66.1** (precision 93% / recall 30% in the top 1%, ROC AUC 0.91). Progress: 58.1 → 59.9 →
-62.0 → 62.3 → 63.9 → 65.0 → 65.4 → 65.7 → 66.1 → **66.9**. Reproduce with `./run.sh` (organiser data in `data/train`,
-`data/test`; ~30 min and ~1 GB RAM on a laptop CPU); it rebuilds the final uploaded file (scored 66.1) byte for byte on our machine; on another CPU, XGBoost may differ in the last digits.
+**Result:** leaderboard AP **67.0** (precision 94% / recall 30% in the top 1%). Progress: 58.1 → 59.9 →
+62.0 → 62.3 → 63.9 → 65.0 → 65.4 → 65.7 → 66.1 → 66.9 → **67.0**. Reproduce with `./run.sh` (organiser data in `data/train`,
+`data/test`; ~45 min and ~1.5 GB RAM on a laptop CPU); it rebuilds the final uploaded file (scored 66.1) byte for byte on our machine; on another CPU, XGBoost may differ in the last digits.
 Scores mean "worth a human look" on synthetic data, never evidence of wrongdoing.
 
 ## 1. What the data taught us (before any modelling)
@@ -27,7 +27,7 @@ Scores mean "worth a human look" on synthetic data, never evidence of wrongdoing
 
 ## 3. Model
 LightGBM (learning rate 0.02, 15 leaves, at least 60 rows per leaf), averaged over 5 seeds, blended by rank with one
-single-seed XGBoost (weight chosen out of fold). Three modelling changes mattered more than any feature:
+single-seed XGBoost (weight chosen out of fold). Four modelling changes mattered more than any feature:
 1. **Early stopping on log-loss instead of AP.** AP on ~250 validation positives is jumpy, so every fold stopped at
    a lucky round. Switching cut seed-to-seed CV noise from about ±2.5 to ±0.5 AP and raised CV by ~2.
 2. **A family helper model.** The training labels name the scenario family of *every* payment (innocent look-alikes,
@@ -37,8 +37,11 @@ single-seed XGBoost (weight chosen out of fold). Three modelling changes mattere
 3. **A joint helper** (`src/gemini_modelling.py`, written by Gemini, made deterministic by us). Two more out-of-fold
    models predict family × suspicious (~22 classes) and a 6-way difficulty regime; their 25 probabilities become
    features, so the model can tell a planted fan-out from an innocent one directly. +0.8 on the leaderboard.
+4. **A pattern × difficulty helper** (`src/famdiff.py`, ours). The joint helper merges easy and medium positives of a
+   pattern into one class; this out-of-fold model predicts e.g. stack-medium vs stack-easy vs stack-innocent (~30
+   classes), giving the main model an explicit per-pattern medium signal. +0.1 on the leaderboard (66.9 → 67.0).
 
-**Final submission** (`run.sh`): six models, each a 5-seed LightGBM blended with a single-seed XGBoost and using both helpers, rank-averaged: three copies
+**Final submission** (`run.sh`): six models, each a 5-seed LightGBM blended with a single-seed XGBoost and using all three helpers, rank-averaged: three copies
 (seeds 42, 7, 11) valued in *nominal* units and three in true per-asset USD (see section 6 for why both), then
 **burst smoothing**: payments sharing a wallet within 7.5 minutes form a group, and each score becomes
 0.5 × its own rank + 0.5 × the rank of its group's best score, so one confident payment in a fast flow lifts the rest.
@@ -62,7 +65,8 @@ Every decision was compared over 2-3 seeds, because single-seed differences unde
 | 4 models | v5 and v6, two seeds each | - | 65.4 |
 | 4 models, 7.5 min | wider smoothing window | - | 65.7 |
 | 6 models | six models (three seeds each), 7.5-minute smoothing | - | 66.1 |
-| **final** | + joint family × suspicious and difficulty helper | - | **66.9** |
+| 6 models + joint helper | + joint family × suspicious and difficulty helper | - | 66.9 |
+| **final** | + pattern × difficulty helper | - | **67.0** |
 
 Late tuning that did not beat the six-model ensemble (66.1) on the leaderboard: eight models (66.0), smoothing strength 0.35 / 0.65 (66.0 /
 65.8), a 9-minute window (65.6), multi-scale smoothing (65.9), weighting one model double (65.3), per-week
@@ -92,7 +96,7 @@ Tried and rejected after testing (2-3 seeds each): stacking on neighbour scores,
 
 ## 7. Limits
 Synthetic data; medium and hard cases are mostly missed (0% of them in the top 1%); the 25 ambiguous cases are random
-by design. CV for the family and joint helpers is slightly optimistic: their out-of-fold predictions reuse the main model's folds
+by design. CV for the three helpers is slightly optimistic: their out-of-fold predictions reuse the main model's folds
 instead of nested cross-fitting, so a validation fold's labels reach the helper features of the other folds (the
 leaderboard, which never sees labels, is the number we trust). A train-vs-test classifier separates the two weeks
 perfectly (AUC 1.0: amounts, conversion mix and burst sizes shift between weeks). That is week shift, not a label leak;

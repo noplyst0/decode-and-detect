@@ -1,10 +1,10 @@
 #!/bin/sh
-# Reproduce the submitted predictions (Cloudee, Decode & Detect 2026). Python 3.13, CPU only, ~30 min, ~1 GB RAM.
+# Reproduce the submitted predictions (Cloudee, Decode & Detect 2026). Python 3.13, CPU only, ~45 min, ~1.5 GB RAM.
 # macOS needs `brew install libomp` for LightGBM. Data: organiser files in data/train and data/test.
-# Final = rank-average of six models (nominal and true-USD values x seeds 42, 7, 11, each with the joint helper), then
-# 7.5-minute burst smoothing.
+# Final = rank-average of six models (nominal and true-USD values x seeds 42, 7, 11, each with the joint and the
+# pattern x difficulty helpers), then 7.5-minute burst smoothing.
 set -e
-FINAL="${FINAL:-v5ja v5jas7 v5jas11 v6cja v6cjas7 v6cjas11}"   # leaderboard-chosen (66.9); see NOTES.md
+FINAL="${FINAL:-v5fd v5fds7 v5fds11 v6cfd v6cfds7 v6cfds11}"   # leaderboard-chosen (67.0); see NOTES.md
 [ -d .venv ] || { python3 -m venv .venv && .venv/bin/pip install -r requirements.txt; }
 PY=.venv/bin/python
 B="--train data/train --test data/test --stack 0 --seeds 5 --xgb --drop memo,probe --seed 42"

@@ -52,6 +52,8 @@ mock's hidden test week, which has two shapes never seen in training (irregular,
 | 14:03 | 92c62e1 | 20: 6 JOINT_AUX + 6 normal, 450 s | - | 66.8 | mixing in the plain models dilutes it |
 | 14:21 | 40026a1 | 23/24/25: JOINT_AUX6 re-smoothed: 300 s / 600 s / a=0.6 | - | 66.6 / 66.5 / 66.7 | 450 s, a=0.5 stays best |
 | 14:24 | 40026a1 | 26/27/28: JOINT_AUX6 + helper re-rank (rank + a*easy_med + b*motif_inno; OOF 61.8 -> 63.0) | - | 66.6 / 66.7 / 66.8 | OOF gain did not transfer; dropped |
+| 14:58 | 8646dd0 | 29/30/31: 4 JOINT_AUX models: baseline / + RANKNORM / + WEIGHTS=med3 | - | 66.7 / 66.1 / 66.8 | RANKNORM hurts again; med3 +0.1 (noise level) |
+| 15:06 | e90eaa4 | 32: 6 models JOINT_AUX + FAMDIFF (pattern x difficulty helper, src/famdiff.py), 450 s | - | **67.0** | NEW BEST (+0.1); FINAL |
 | 11:58 | d3d5e6a | sub v5 | 58.59 | **63.9** | log-loss early stopping + family helper (3-seed CV 58.9); easy 50% in top 1% |
 | 11:35 | b028bb6 | sub v4 | 56.64 | 62.3 | + Gemini motif features (src/gemini_feats.py, +0.9 CV over 2 seeds) + XGB blend 0.5 |
 | 11:08 | 0ed7435 | sub v3 | 56.75 | **62.0** | + burst shape/conversion, LGB lr .02/15 leaves/min_child 60, 5-seed avg (AUC .90; medium 0% in top 1%) |
@@ -70,3 +72,10 @@ mock's hidden test week, which has two shapes never seen in training (irregular,
   sequence, DATE_CREATED, hash: all AUC 0.46-0.53); twin pairing (best wallet overlap 7%: twins are independent).
 - run.sh rebuild differed from the 66.1 upload in one model: LightGBM's auto row/col-wise choice is timing-based. Fixed
   with force_col_wise + deterministic; the final CSV must come from the deterministic code.
+- Afternoon dead ends checked against train labels (15:00): with the TRUE scenario boundaries, in-scenario pass-through
+  is the same for planted and innocent relays (0.90 vs 0.90-0.91) and LOWER for medium than for their twins
+  (multi_stage 0.80 vs 0.83, stack 0.86 vs 0.92), so per-episode value conservation cannot separate medium/hard.
+  First-time counterparty pairs: ~97% for planted and innocent alike (AUC 0.46-0.53). Relay hold-time repeats: AUC 0.50.
+  Relay scenarios match their twins on conversion share, size, wallets and span. Wallets are one shared pool (~5
+  families and ~110 tx each), so wallet history carries no label signal. Second opinions (ChatGPT, DeepSeek round 3)
+  proposed exactly these three signals.
