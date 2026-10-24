@@ -62,6 +62,7 @@ def helper_joint_subtype(
         'verbosity': -1,
         'n_jobs': -1,
         'seed': seed,
+        'force_col_wise': True, 'deterministic': True,  # same output under any CPU load (as in pipeline.py)
     }
 
     for k, (tr_idx, va_idx) in enumerate(folds):
@@ -320,6 +321,7 @@ def get_sample_weights_and_params(
         'verbosity': -1,
         'n_jobs': -1,
         'seed': seed,
+        'force_col_wise': True, 'deterministic': True,  # same output under any CPU load (as in pipeline.py)
     }
     return params, w, y_clean
 

@@ -1,9 +1,10 @@
 #!/bin/sh
-# Reproduce the submitted predictions (Cloudee, Decode & Detect 2026). Python 3.13, CPU only, ~15 min, ~1 GB RAM.
+# Reproduce the submitted predictions (Cloudee, Decode & Detect 2026). Python 3.13, CPU only, ~30 min, ~1 GB RAM.
 # macOS needs `brew install libomp` for LightGBM. Data: organiser files in data/train and data/test.
-# Final = rank-average of six models (nominal and true-USD values x seeds 42, 7, 11), then 7.5-minute burst smoothing.
+# Final = rank-average of six models (nominal and true-USD values x seeds 42, 7, 11, each with the joint helper), then
+# 7.5-minute burst smoothing.
 set -e
-FINAL="${FINAL:-v5 v5s7 v5s11 v6c v6cs7 v6cs11}"   # leaderboard-chosen; see NOTES.md
+FINAL="${FINAL:-v5ja v5jas7 v5jas11 v6cja v6cjas7 v6cjas11}"   # leaderboard-chosen (66.9); see NOTES.md
 [ -d .venv ] || { python3 -m venv .venv && .venv/bin/pip install -r requirements.txt; }
 PY=.venv/bin/python
 B="--train data/train --test data/test --stack 0 --seeds 5 --xgb --drop memo,probe --seed 42"
@@ -21,6 +22,10 @@ for m in $FINAL; do
     v6crn)   RANKNORM=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv ;;
     v5rns*)  RANKNORM=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5rns} ;;
     v6crns*) RANKNORM=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v6crns} ;;
+    v5ja)    JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv ;;              # + joint family/difficulty helper
+    v6cja)   JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv ;;
+    v5jas*)  JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5jas} ;;
+    v6cjas*) JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v6cjas} ;;
     v5s*)  USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5s} ;;    # v5 with another seed
     v6cs*) USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v6cs} ;;   # v6c with another seed
   esac

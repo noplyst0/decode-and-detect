@@ -48,6 +48,8 @@ mock's hidden test week, which has two shapes never seen in training (irregular,
 | 13:40 | 2c3f196 | 16: 6 RANKNORM + 6 normal, 450 s | - | 66.1 | tie with 18; the simpler 6-model ensemble stays |
 | 13:41 | 2c3f196 | 18: run.sh default from the deterministic code | - | **66.1** | FINAL: code reproduces the best score |
 | 13:46 | 2c3f196 | 17: 2 models DOMAIN_W=1 (covariate-shift weights), 450 s | - | 65.4 | = 13 (65.4): neutral; domain AUC 1.000, 94% of weights at the 0.25 floor |
+| 14:02 | 92c62e1 | 19: 6 models with JOINT_AUX=1 (joint family x suspicious + difficulty helper), 450 s | - | **66.9** | NEW BEST (+0.8); FINAL |
+| 14:03 | 92c62e1 | 20: 6 JOINT_AUX + 6 normal, 450 s | - | 66.8 | mixing in the plain models dilutes it |
 | 11:58 | d3d5e6a | sub v5 | 58.59 | **63.9** | log-loss early stopping + family helper (3-seed CV 58.9); easy 50% in top 1% |
 | 11:35 | b028bb6 | sub v4 | 56.64 | 62.3 | + Gemini motif features (src/gemini_feats.py, +0.9 CV over 2 seeds) + XGB blend 0.5 |
 | 11:08 | 0ed7435 | sub v3 | 56.75 | **62.0** | + burst shape/conversion, LGB lr .02/15 leaves/min_child 60, 5-seed avg (AUC .90; medium 0% in top 1%) |
