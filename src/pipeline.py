@@ -1017,6 +1017,11 @@ def main():
             ja, jb = helper_joint_subtype(F, Ft, y, aux, groups, a.seed)
             F, Ft = pd.concat([F, ja], axis=1), pd.concat([Ft, jb.reindex(columns=ja.columns)], axis=1)
             log(f"joint helper: {ja.shape[1]} columns added")
+            if os.environ.get("FAMDIFF", "0") == "1":  # pattern x difficulty helper (src/famdiff.py)
+                from famdiff import helper_family_difficulty
+                da, db = helper_family_difficulty(F, Ft, y, aux, groups, a.seed)
+                F, Ft = pd.concat([F, da], axis=1), pd.concat([Ft, db.reindex(columns=da.columns)], axis=1)
+                log(f"family x difficulty helper: {da.shape[1]} columns added")
         d = aux.difficulty.fillna("normal").to_numpy()
         if wmode == "hard0":
             TRAIN_W = np.where((y.to_numpy() == 1) & np.isin(d, ["hard"]), 0.0, 1.0)

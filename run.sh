@@ -26,6 +26,10 @@ for m in $FINAL; do
     v6cja)   JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv ;;
     v5jas*)  JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5jas} ;;
     v6cjas*) JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v6cjas} ;;
+    v5fd)    FAMDIFF=1 JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv ;;    # + pattern x difficulty helper
+    v6cfd)   FAMDIFF=1 JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv ;;
+    v5fds*)  FAMDIFF=1 JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5fds} ;;
+    v6cfds*) FAMDIFF=1 JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v6cfds} ;;
     v5s*)  USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5s} ;;    # v5 with another seed
     v6cs*) USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v6cs} ;;   # v6c with another seed
   esac
