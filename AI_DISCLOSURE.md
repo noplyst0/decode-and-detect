@@ -13,3 +13,8 @@
 - Gemini app, "4 Argon", thinking High: given only aggregate statistics (never the organisers' data), it wrote
   `src/gemini_feats.py` (motif features, kept after a 2-seed A/B) and an analysis script whose aggregate output guided
   the relay features. Prompts are in `docs/` and `gemini_in/`. We tested every suggestion before keeping it.
+- A second Claude Code session (same model family) did an independent code review (`review/REVIEW.md`). It found the
+  USD valuation bug and proposed burst smoothing (`src/smooth_sub.py`, `review/burst_smooth.patch`); both were tested
+  on the leaderboard before being kept. It never had access to anything beyond this repository and the organiser data.
+- What the team decided and verified: every change was kept only after a 2-3 seed CV check or a leaderboard upload;
+  the final ensemble and smoothing settings were chosen on the leaderboard (see `NOTES.md`).
