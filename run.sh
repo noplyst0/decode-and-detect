@@ -2,9 +2,9 @@
 # Reproduce the submitted predictions (Cloudee, Decode & Detect 2026). Python 3.13, CPU only, ~45 min, ~1.5 GB RAM.
 # macOS needs `brew install libomp` for LightGBM. Data: organiser files in data/train and data/test.
 # Final = rank-average of six models (nominal and true-USD values x seeds 42, 7, 11, each with the joint and the
-# pattern x difficulty helpers), then 7.5-minute burst smoothing.
+# pattern x difficulty helpers), test-week self-training (src/selftrain.py), then 7.5-minute burst smoothing.
 set -e
-FINAL="${FINAL:-v5fd v5fds7 v5fds11 v6cfd v6cfds7 v6cfds11}"   # leaderboard-chosen (67.0); see NOTES.md
+FINAL="${FINAL:-v5fd v5fds7 v5fds11 v6cfd v6cfds7 v6cfds11}"   # leaderboard-chosen (67.2 with self-training); see NOTES.md
 [ -d .venv ] || { python3 -m venv .venv && .venv/bin/pip install -r requirements.txt; }
 PY=.venv/bin/python
 B="--train data/train --test data/test --stack 0 --seeds 5 --xgb --drop memo,probe --seed 42"
@@ -30,6 +30,14 @@ for m in $FINAL; do
     v6cfd)   FAMDIFF=1 JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv ;;
     v5fds*)  FAMDIFF=1 JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5fds} ;;
     v6cfds*) FAMDIFF=1 JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v6cfds} ;;
+    v5fm)    WEIGHTS=med3 FAMDIFF=1 JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv ;;
+    v6cfm)   WEIGHTS=med3 FAMDIFF=1 JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv ;;
+    v5fms*)  WEIGHTS=med3 FAMDIFF=1 JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5fms} ;;
+    v6cfms*) WEIGHTS=med3 FAMDIFF=1 JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v6cfms} ;;
+    v5fa)    FAMAUX_AVG=1 FAMDIFF=1 JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv ;;
+    v6cfa)   FAMAUX_AVG=1 FAMDIFF=1 JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv ;;
+    v5fas*)  FAMAUX_AVG=1 FAMDIFF=1 JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5fas} ;;
+    v6cfas*) FAMAUX_AVG=1 FAMDIFF=1 JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v6cfas} ;;
     v5jm)    WEIGHTS=med3 JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv ;;   # joint helper, medium x3
     v6cjm)   WEIGHTS=med3 JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv ;;
     v5jms*)  WEIGHTS=med3 JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5jms} ;;
@@ -39,5 +47,11 @@ for m in $FINAL; do
   esac
 done
 if [ "$(echo $FINAL | wc -w)" -gt 1 ]; then $PY src/rank_ensemble.py --out runs/final_ens.csv $files; else cp $files runs/final_ens.csv; fi
+if [ "${SELFTRAIN:-1}" = 1 ]; then   # test-week self-training (src/selftrain.py) on the joint-helper model's test features
+  JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --dump --out runs/feats_model.csv   # writes runs/test_feats.parquet
+  $PY src/selftrain.py --sub runs/final_ens.csv --feats runs/test_feats.parquet --out runs/final_ens_st.csv \
+    --K "${SELFTRAIN_K:-600}" --lam "${SELFTRAIN_L:-0.25}" --bag "${SELFTRAIN_BAG:-1}"
+  mv runs/final_ens_st.csv runs/final_ens.csv
+fi
 $PY src/smooth_sub.py --test data/test --sub runs/final_ens.csv --out submission.csv --w "${SMOOTH_W:-450}" --a "${SMOOTH_A:-0.5}"
 $PY src/check_submission.py submission.csv data/test

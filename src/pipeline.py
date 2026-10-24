@@ -845,10 +845,15 @@ def family_aux(F, Ft, fam, groups, seed, rounds=150):
              feature_fraction=0.7, bagging_fraction=0.8, bagging_freq=1, verbose=-1, num_threads=8, seed=seed,
              force_col_wise=True, deterministic=True)
     oof = np.zeros((len(F), len(names)))
+    avg = os.environ.get("FAMAUX_AVG", "0") == "1"  # test = mean of the 5 fold models, calibrated like the train OOF
+    pt = np.zeros((len(Ft), len(names)))
     for tr, va in GroupKFold(n_splits=5).split(F, codes, groups):
         m = lgb.train(p, lgb.Dataset(F.iloc[tr], codes[tr]), rounds)
         oof[va] = m.predict(F.iloc[va])
-    pt = lgb.train(p, lgb.Dataset(F, codes), rounds).predict(Ft)
+        if avg:
+            pt += m.predict(Ft) / 5
+    if not avg:
+        pt = lgb.train(p, lgb.Dataset(F, codes), rounds).predict(Ft)
     cols = [f"fam_p_{n}" for n in names]
     return pd.DataFrame(oof, F.index, cols), pd.DataFrame(pt, Ft.index, cols)
 
