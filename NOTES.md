@@ -26,6 +26,10 @@ mock's hidden test week, which has two shapes never seen in training (irregular,
 |---|---|---|---|---|---|
 | 10:52 | (scenario CV) | sub v1 | 50.2 | 58.1 | --fast --stack 0, CV folds by organiser scenario_id |
 | 10:58 | 428daff | sub v2 | 54.5 | 59.9 | + burst block (wallet-sharing groups within 2/5/15/45 min); --drop memo,probe |
+| 12:36 | 58fe1a3 | v6a (pre-fix, hard0) | - | 63.6 | hard0 alone on the old features: no gain |
+| 12:38 | 58fe1a3 | v6a fixed USD + hard0 | 60.98 | 62.6 | true USD wins CV +2.4 but LOSES the leaderboard |
+| 12:40 | 58fe1a3 | v6c fixed USD only | 60.97 | 62.8 | confirms: true USD costs ~1 AP on the test week |
+| 12:41 | review | v6a + burst smoothing | - | 63.8 | smoothing +1.2 on the leaderboard |
 | 11:58 | d3d5e6a | sub v5 | 58.59 | **63.9** | log-loss early stopping + family helper (3-seed CV 58.9); easy 50% in top 1% |
 | 11:35 | b028bb6 | sub v4 | 56.64 | 62.3 | + Gemini motif features (src/gemini_feats.py, +0.9 CV over 2 seeds) + XGB blend 0.5 |
 | 11:08 | 0ed7435 | sub v3 | 56.75 | **62.0** | + burst shape/conversion, LGB lr .02/15 leaves/min_child 60, 5-seed avg (AUC .90; medium 0% in top 1%) |
