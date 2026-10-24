@@ -22,5 +22,5 @@ for m in $FINAL; do
   esac
 done
 if [ "$(echo $FINAL | wc -w)" -gt 1 ]; then $PY src/rank_ensemble.py --out runs/final_ens.csv $files; else cp $files runs/final_ens.csv; fi
-$PY src/smooth_sub.py --test data/test --sub runs/final_ens.csv --out submission.csv
+$PY src/smooth_sub.py --test data/test --sub runs/final_ens.csv --out submission.csv --w "${SMOOTH_W:-450}"
 $PY src/check_submission.py submission.csv data/test
