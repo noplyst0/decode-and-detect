@@ -7,3 +7,4 @@ sub*.csv
 __pycache__/
 *.zip
 briefing/
+CLAUDE.md
