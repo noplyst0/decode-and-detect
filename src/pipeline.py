@@ -647,8 +647,42 @@ def iforest_features(e, acct):
     return pd.DataFrame({"s_iforest": e.SRC.map(score), "d_iforest": e.DST.map(score)}, index=e.index)
 
 
+def burst_features(e, windows=(120, 300, 900, 2700)):
+    """Rebuild bursts: link payments that touch the same wallet within w seconds (single linkage), then describe
+    the group each payment lands in. Planted flows finish their whole shape in minutes; look-alikes take hours."""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    n = len(e); rows = np.arange(n)
+    ev = pd.DataFrame({"w": np.r_[e.SRC.astype(str).to_numpy(), e.DST.astype(str).to_numpy()],
+                       "t": np.r_[e.TS.to_numpy(float), e.TS.to_numpy(float)], "r": np.r_[rows, rows]})
+    ev = ev[ev.w != "nan"].sort_values(["w", "t"])
+    same = ev.w.to_numpy()[1:] == ev.w.to_numpy()[:-1]
+    gap = np.diff(ev.t.to_numpy())
+    a, b = ev.r.to_numpy()[:-1], ev.r.to_numpy()[1:]
+    f = pd.DataFrame(index=e.index)
+    usd = e.USD_SENT.to_numpy(float)
+    for w in windows:
+        k = same & (gap <= w)
+        g = coo_matrix((np.ones(k.sum()), (a[k], b[k])), shape=(n, n))
+        _, lab = connected_components(g, directed=False)
+        c = pd.DataFrame({"c": lab, "t": e.TS.to_numpy(float), "s": e.SRC.astype(str).to_numpy(),
+                          "d": e.DST.astype(str).to_numpy(), "u": usd})
+        grp = c.groupby("c")
+        size = grp.c.transform("size").to_numpy()
+        dur = (grp.t.transform("max") - grp.t.transform("min")).to_numpy()
+        nw = grp.s.transform("nunique").to_numpy() + grp.d.transform("nunique").to_numpy()
+        m = w // 60
+        f[f"bu{m}_n"] = size
+        f[f"bu{m}_dur"] = np.where(size > 1, dur, np.nan)
+        f[f"bu{m}_rate"] = np.where(size > 1, size / (dur + 60), np.nan)
+        f[f"bu{m}_wallets_per_tx"] = nw / size
+        f[f"bu{m}_usd_cv"] = (grp.u.transform("std") / grp.u.transform("mean")).to_numpy()
+        f[f"bu{m}_pos"] = (grp.t.rank(method="first").to_numpy() - 1) / np.maximum(size - 1, 1)
+    return f
+
+
 BLOCKS = ["tx", "account", "history", "timing", "chains", "match", "subset", "cycles", "sg", "graph", "iforest", "conv",
-          "memo", "probe", "dormancy"]
+          "memo", "probe", "dormancy", "burst"]
 
 
 def features(e, drop=()):
@@ -661,7 +695,7 @@ def features(e, drop=()):
             "history": lambda: history_features(e, acct, L), "timing": lambda: timing_features(e, L),
             "chains": lambda: chain_features(e, L), "cycles": lambda: cycle_features(e, hubs),
             "sg": lambda: sg_features(e, hubs), "graph": lambda: graph_features(e, acct, hubs),
-            "iforest": lambda: iforest_features(e, acct)}
+            "iforest": lambda: iforest_features(e, acct), "burst": lambda: burst_features(e)}
     parts = []
     for b in BLOCKS:
         if b not in drop:
