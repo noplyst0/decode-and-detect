@@ -17,6 +17,10 @@ for m in $FINAL; do
     v5)  USD_MODE=nominal              $PY src/pipeline.py $B --out runs/final_v5.csv ;;   # LB 63.9 alone
     v6a) USD_MODE=true WEIGHTS=hard0   $PY src/pipeline.py $B --out runs/final_v6a.csv ;;  # LB 62.6 alone
     v6c) USD_MODE=true                 $PY src/pipeline.py $B --out runs/final_v6c.csv ;;  # LB 62.8 alone
+    v5rn)    RANKNORM=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv ;;                # week-normalised
+    v6crn)   RANKNORM=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv ;;
+    v5rns*)  RANKNORM=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5rns} ;;
+    v6crns*) RANKNORM=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v6crns} ;;
     v5s*)  USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5s} ;;    # v5 with another seed
     v6cs*) USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v6cs} ;;   # v6c with another seed
   esac
