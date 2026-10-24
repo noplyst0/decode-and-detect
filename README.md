@@ -12,7 +12,11 @@ Computing: Python 3.13, CPU only, about 50 minutes and ~1.5 GB peak RAM on an Ap
 `brew install libomp` for LightGBM. No external services, APIs or network access at run time.
 
 ## Other leaderboard runs and how to rebuild each
-The submitted file (67.3) is the `./run.sh` default. Runs at 67.2 rebuild with the same code:
+The submitted file (67.3) is the `./run.sh` default. Other runs that also showed 67.3 rebuild with the same code:
+- self-training weight 0.20: `SELFTRAIN_L=0.2 ./run.sh`; three averaged pseudo-models: `SELFTRAIN_BAG=3 ./run.sh`
+- medium-weighted models: `FINAL="v5fm v5fms7 v5fms11 v6cfm v6cfms7 v6cfms11" ./run.sh`
+- both model sets: `FINAL="v5fd v5fds7 v5fds11 v6cfd v6cfds7 v6cfds11 v5fm v5fms7 v5fms11 v6cfm v6cfms7 v6cfms11" ./run.sh`
+Runs at 67.2:
 - negatives below rank 6,000: `SELFTRAIN_N=6000 ./run.sh` (also with `SELFTRAIN_L=0.15` or `0.2`)
 - medium-weighted models: `SELFTRAIN_N=6000 FINAL="v5fm v5fms7 v5fms11 v6cfm v6cfms7 v6cfms11" ./run.sh`
 Without self-training (67.0): `SELFTRAIN=0 ./run.sh`; other 67.0 runs: `SELFTRAIN=0 SMOOTH_W=500 ./run.sh`,
