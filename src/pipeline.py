@@ -36,7 +36,7 @@ import argparse, json, os, re, subprocess, time
 import numpy as np, pandas as pd, networkx as nx, lightgbm as lgb
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import average_precision_score as aps, roc_auc_score
-from sklearn.model_selection import GroupKFold
+from sklearn.model_selection import GroupKFold, StratifiedKFold
 
 XRP_TOKEN = "0x1111222211112222111122221111222211112222"
 HOUR, DAY, BIG = 3600, 86400, 10**8
@@ -948,6 +948,7 @@ def rank01(a):
 
 
 def main():
+    global TRAIN_W
     ap = argparse.ArgumentParser()
     ap.add_argument("--train", required=True); ap.add_argument("--test", required=True)
     ap.add_argument("--out", default="submission.csv"); ap.add_argument("--seed", type=int, default=42)
@@ -991,6 +992,19 @@ def main():
                 ta, tb = twin_aux(F, Ft, y, fam.reindex(e_tr.index), groups, a.seed)
                 F, Ft = pd.concat([F, ta], axis=1), pd.concat([Ft, tb], axis=1)
                 log("twin helper: out-of-fold suspicious-vs-look-alike score added")
+    if os.environ.get("DOMAIN_W", "0") == "1":
+        # Covariate-shift weights: a classifier tells train rows from test rows (out of fold); train rows that look
+        # like the test week get more weight, w = p/(1-p) * n_train/n_test, clipped to [0.25, 4]. No labels used.
+        Xd = pd.concat([F, Ft]); yd = np.r_[np.zeros(len(F)), np.ones(len(Ft))]
+        pdm = dict(objective="binary", learning_rate=0.05, num_leaves=15, min_child_samples=100, feature_fraction=0.7,
+                   verbose=-1, num_threads=8, seed=a.seed, force_col_wise=True, deterministic=True)
+        pd_oof = np.zeros(len(Xd))
+        for k_tr, k_va in StratifiedKFold(n_splits=3, shuffle=True, random_state=a.seed).split(Xd, yd):
+            pd_oof[k_va] = lgb.train(pdm, lgb.Dataset(Xd.iloc[k_tr], yd[k_tr]), 150).predict(Xd.iloc[k_va])
+        log(f"domain classifier AUC train-vs-test {roc_auc_score(yd, pd_oof):.3f}")
+        pt = np.clip(pd_oof[:len(F)], 1e-3, 1 - 1e-3)
+        TRAIN_W = np.clip(pt / (1 - pt) * len(F) / len(Ft), 0.25, 4.0)
+        log(f"domain weights: mean {TRAIN_W.mean():.2f}, at 0.25: {(TRAIN_W <= 0.25).mean():.0%}, at 4: {(TRAIN_W >= 4).mean():.0%}")
     wmode = os.environ.get("WEIGHTS", "none")
     if wmode != "none" or os.environ.get("JOINT_AUX", "0") == "1":
         lab = read_any(a.train, "label").set_index("TRANSACTION_HASH").reindex(e_tr.index)
@@ -1001,7 +1015,6 @@ def main():
             ja, jb = helper_joint_subtype(F, Ft, y, aux, groups, a.seed)
             F, Ft = pd.concat([F, ja], axis=1), pd.concat([Ft, jb.reindex(columns=ja.columns)], axis=1)
             log(f"joint helper: {ja.shape[1]} columns added")
-        global TRAIN_W
         d = aux.difficulty.fillna("normal").to_numpy()
         if wmode == "hard0":
             TRAIN_W = np.where((y.to_numpy() == 1) & np.isin(d, ["hard"]), 0.0, 1.0)
