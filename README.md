@@ -11,6 +11,11 @@ Submitted commit: `8646dd0`. Leaderboard AP: `66.9`.
 Computing: Python 3.13, CPU only, about 30 minutes and ~1 GB peak RAM on an Apple M4 laptop. macOS needs
 `brew install libomp` for LightGBM. No external services, APIs or network access at run time.
 
+## Third-party components
+Python libraries pinned in `requirements.txt`: LightGBM (MIT), XGBoost (Apache-2.0), pandas, NumPy, scikit-learn,
+NetworkX (BSD-3-Clause), PyArrow (Apache-2.0), Matplotlib (Matplotlib licence, BSD-style), tqdm (MIT/MPL-2.0). Data: the
+organisers' supplied files only (not redistributed here). AI assistance is listed in `AI_DISCLOSURE.md`.
+
 ## Contents
 `submission.csv` (submitted predictions), `runs/log.csv` (validation results per run), `NOTES.md` (experiment
 log), `METHOD.md` (method report), `AI_DISCLOSURE.md` (AI models, prompts in `docs/`). Licence: MIT.
