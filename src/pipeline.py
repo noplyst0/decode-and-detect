@@ -970,6 +970,11 @@ def main():
     log("features train:"); F, ctx = features(e_tr, drop)
     log("features test:"); Ft, ctx_t = features(e_te, drop)
     Ft = Ft.reindex(columns=F.columns)
+    if os.environ.get("RANKNORM", "0") == "1":
+        # Each feature -> its percentile within its own week, so train and test line up despite week-level shifts
+        # (true USD, conversion share and burst-group sizes all differ between the two weeks). NaN stays NaN.
+        F, Ft = F.rank(pct=True), Ft.rank(pct=True)
+        log("features rank-normalised within each split")
     groups = scenario_groups(e_tr, y, ctx["hubs"], label_scenarios(a.train))
     if "memo" not in drop and e_tr.HAS_MEMO.any():
         te_tr, te_te = memo_target_encoding(e_tr, e_te, y, groups)
