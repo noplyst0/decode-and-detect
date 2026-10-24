@@ -44,6 +44,10 @@ mock's hidden test week, which has two shapes never seen in training (irregular,
 | 12:57 | - | 8 models (+ seed 23), 450 s | - | 66.0 | seeds plateau |
 | 12:58 | - | 6 models, 450 s, a=0.35 / a=0.65 / multi-scale 300+450+600 | - | 66.0 / 65.8 / 65.9 | smoothing tuned |
 | 13:18 | - | 2 models (v5+v6c), 450 s: baseline vs RANKNORM=1 (per-week feature percentiles) | - | 65.4 vs **65.8** | week shift is real; rank-normalising helps (+0.4) |
+| 13:40 | 2c3f196 | 15: 6 RANKNORM models, 450 s | - | 65.7 | week-normalising loses at 6 models (the 2-model +0.4 did not scale) |
+| 13:40 | 2c3f196 | 16: 6 RANKNORM + 6 normal, 450 s | - | 66.1 | tie with 18; the simpler 6-model ensemble stays |
+| 13:41 | 2c3f196 | 18: run.sh default from the deterministic code | - | **66.1** | FINAL: code reproduces the best score |
+| 13:46 | 2c3f196 | 17: 2 models DOMAIN_W=1 (covariate-shift weights), 450 s | - | 65.4 | = 13 (65.4): neutral; domain AUC 1.000, 94% of weights at the 0.25 floor |
 | 11:58 | d3d5e6a | sub v5 | 58.59 | **63.9** | log-loss early stopping + family helper (3-seed CV 58.9); easy 50% in top 1% |
 | 11:35 | b028bb6 | sub v4 | 56.64 | 62.3 | + Gemini motif features (src/gemini_feats.py, +0.9 CV over 2 seeds) + XGB blend 0.5 |
 | 11:08 | 0ed7435 | sub v3 | 56.75 | **62.0** | + burst shape/conversion, LGB lr .02/15 leaves/min_child 60, 5-seed avg (AUC .90; medium 0% in top 1%) |

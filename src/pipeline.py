@@ -27,9 +27,9 @@
    subset/dormancy are OFF by default (--add); so are --vtags (split busy receivers per destination tag)
    and --local-stack (+-24h neighbour scores). All four were Gemini's review ideas; none helped on either
    practice dataset (2026-10-24), but the real data may differ, so they stay one flag away.
-3. LightGBM, 5-fold CV where each laundering case stays in one fold, early stopping on AP.
+3. LightGBM, 5-fold CV where each laundering case stays in one fold, early stopping on log-loss (STOP_METRIC=ap for the old AP stopping).
 4. stacking: each payment learns from its neighbours' scores (same wallet, the payment that funded the
-   sender, the receiver's next payment, same pair), so a whole flow lights up together. 2 rounds.
+   sender, the receiver's next payment, same pair), so a whole flow lights up together. Off in the final (--stack 0): it hurt on the real data.
 5. seed average (+ optional XGBoost), continuous scores in [0, 1], CSV + run log.
 """
 import argparse, json, os, re, subprocess, time

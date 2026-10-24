@@ -2,7 +2,7 @@
 
 **Result:** leaderboard AP **66.1** (precision 93% / recall 30% in the top 1%, ROC AUC 0.91). Progress: 58.1 → 59.9 →
 62.0 → 62.3 → 63.9 → 65.0 → 65.4 → 65.7 → **66.1**. Reproduce with `./run.sh` (organiser data in `data/train`,
-`data/test`; ~15 min and ~1 GB RAM on a laptop CPU); it rebuilds the uploaded file byte for byte.
+`data/test`; ~15 min and ~1 GB RAM on a laptop CPU); it rebuilds the final uploaded file (scored 66.1) byte for byte on our machine; on another CPU, XGBoost may differ in the last digits.
 Scores mean "worth a human look" on synthetic data, never evidence of wrongdoing.
 
 ## 1. What the data taught us (before any modelling)
@@ -11,7 +11,7 @@ Scores mean "worth a human look" on synthetic data, never evidence of wrongdoing
 - Fees, flags, tags, memos and results are identical for everyone: only **behaviour** separates the classes.
 - Every planted shape (cycle, chain, fan-in/out, bipartite, stack, multi-stage, random) has innocent look-alikes of
   the same shape. The difference is mostly **speed and exactness**: easy planted flows finish in ~5 minutes (~1 min
-  between hops) and forward ~99% of what arrives; look-alikes take ~1 hour and keep ~8% per hop.
+  between hops) and forward ~99% of what arrives; look-alikes take ~1 hour and lose ~8-11% per hop.
 - Medium cases are the same motifs slowed to ~18-minute hops inside normal traffic; hard cases hide among ~10,000
   innocent relay payments per family. Both are close to unlearnable from the 27 and ~12 training scenarios they have.
 
@@ -26,8 +26,8 @@ Scores mean "worth a human look" on synthetic data, never evidence of wrongdoing
   motif reconstruction, per-shape conversion interactions, split- and merge-aware pass-through.
 
 ## 3. Model
-LightGBM (learning rate 0.02, 15 leaves, at least 60 rows per leaf), averaged over 5 seeds, blended by rank with
-XGBoost (weight chosen out of fold). Two modelling changes mattered more than any feature:
+LightGBM (learning rate 0.02, 15 leaves, at least 60 rows per leaf), averaged over 5 seeds, blended by rank with one
+single-seed XGBoost (weight chosen out of fold). Two modelling changes mattered more than any feature:
 1. **Early stopping on log-loss instead of AP.** AP on ~250 validation positives is jumpy, so every fold stopped at
    a lucky round. Switching cut seed-to-seed CV noise from about ±2.5 to ±0.5 AP and raised CV by ~2.
 2. **A family helper model.** The training labels name the scenario family of *every* payment (innocent look-alikes,
@@ -35,7 +35,7 @@ XGBoost (weight chosen out of fold). Two modelling changes mattered more than an
    features, so the main model knows which shape a payment sits in. That matters because the suspicious-vs-look-alike
    rules flip by shape (planted cycles avoid conversions; planted fan-outs use them). +1.1 CV on all three seeds.
 
-**Final submission** (`run.sh`): six models, each a 5-seed LightGBM + XGBoost blend, rank-averaged: three copies
+**Final submission** (`run.sh`): six models, each a 5-seed LightGBM blended with a single-seed XGBoost, rank-averaged: three copies
 (seeds 42, 7, 11) valued in *nominal* units and three in true per-asset USD (see section 6 for why both), then
 **burst smoothing**: payments sharing a wallet within 7.5 minutes form a group, and each score becomes
 0.5 × its own rank + 0.5 × the rank of its group's best score, so one confident payment in a fast flow lifts the rest.
@@ -63,7 +63,8 @@ Every decision was compared over 2-3 seeds, because single-seed differences unde
 Late tuning that did not beat 66.1 on the leaderboard: eight models (66.0), smoothing strength 0.35 / 0.65 (66.0 /
 65.8), a 9-minute window (65.6), multi-scale smoothing (65.9), weighting one model double (65.3), per-week
 feature percentiles (65.8 vs 65.4 with two models, but 65.7 with six), the six models plus their six week-normalised
-twins (66.1, a tie, so the simpler six-model ensemble stays).
+twins (66.1, a tie, so the simpler six-model ensemble stays), covariate-shift weights from a train-vs-test classifier
+(65.4, no change with two models).
 
 Tried and rejected after testing (2-3 seeds each): stacking on neighbour scores, memo and failed-payment features
 (the real data has none), Gemini's relay, repeat-burst and twin-specialist ideas, looser trees.
@@ -79,7 +80,7 @@ Tried and rejected after testing (2-3 seeds each): stacking on neighbour scores,
   `issuer:currency`). Fixing it raised CV by ~2.4 but *lowered* the leaderboard by ~1, so prices seem to shift between
   weeks; the final ensemble averages a model on nominal values with one on true USD, which beat both (64.1 vs 63.9).
 - **Burst smoothing** (from the review): each payment's score is averaged with the best score among payments sharing a
-  wallet within 5 minutes, so one confident payment in a fast flow lifts the rest. +0.7 to +1.2 on the leaderboard.
+  wallet within 5 minutes (7.5 in the final), so one confident payment in a fast flow lifts the rest. +0.7 to +1.2 on the leaderboard.
 - Medium cases rank *below* their innocent look-alikes (AUC 0.40 inside the motif families): they are slower than the
   look-alikes, and the model learned "fast means suspicious" from the easy cases. 27 training scenarios cannot fix that.
 
@@ -87,4 +88,6 @@ Tried and rejected after testing (2-3 seeds each): stacking on neighbour scores,
 Synthetic data; medium and hard cases are mostly missed (0% of them in the top 1%); the 25 ambiguous cases are random
 by design. CV for the family helper is slightly optimistic: its out-of-fold predictions reuse the main model's folds
 instead of nested cross-fitting, so a validation fold's labels reach the helper features of the other folds (the
-leaderboard, which never sees labels, is the number we trust). AI use (Claude Code, Gemini) is listed in `AI_DISCLOSURE.md` with the prompts in `docs/` and `gemini_in/`.
+leaderboard, which never sees labels, is the number we trust). A train-vs-test classifier separates the two weeks
+perfectly (AUC 1.0: amounts, conversion mix and burst sizes shift between weeks). That is week shift, not a label leak;
+averaging nominal- and true-USD models by rank is our hedge, and re-weighting training rows towards the test week did not help. AI use (Claude Code, Gemini) is listed in `AI_DISCLOSURE.md` with the prompts in `docs/` and `gemini_in/`.

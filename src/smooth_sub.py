@@ -1,4 +1,4 @@
-"""(Written by the independent review session.) Apply 5-min burst smoothing to an existing predictions CSV (no retraining).
+"""(Written by the independent review session.) Apply burst smoothing (window --w seconds; the final uses 450) to an existing predictions CSV (no retraining).
     .venv/bin/python src/smooth_sub.py --test data/test --sub sub_v6.csv --out sub_v6s.csv [--w 300 --a 0.5]"""
 import argparse, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

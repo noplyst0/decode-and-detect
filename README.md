@@ -8,7 +8,7 @@ Submitted commit: `2c3f196`. Leaderboard AP: `66.1`.
 `requirements.txt` and writes `submission.csv`. Check the output before upload:
 `.venv/bin/python src/check_submission.py submission.csv data/test`.
 
-Computing: Python 3.13, CPU only, about 1 minute and ~1 GB peak RAM on an Apple M4 laptop. macOS needs
+Computing: Python 3.13, CPU only, about 15 minutes and ~1 GB peak RAM on an Apple M4 laptop. macOS needs
 `brew install libomp` for LightGBM. No external services, APIs or network access at run time.
 
 ## Contents
