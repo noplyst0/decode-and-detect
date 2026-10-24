@@ -653,6 +653,12 @@ def gemini_block(e):
     return gemini_features(e)
 
 
+def relay_block(e):
+    """Scripted-collector features (regular hold before payout), designed by Gemini; see src/gemini_relay.py."""
+    from gemini_relay import relay_features
+    return relay_features(e)
+
+
 def burst_features(e, windows=(120, 300, 900, 2700)):
     """Rebuild bursts: link payments that touch the same wallet within w seconds (single linkage), then describe
     the group each payment lands in. Planted flows finish their whole shape in minutes; look-alikes take hours."""
@@ -708,7 +714,7 @@ def burst_features(e, windows=(120, 300, 900, 2700)):
 
 
 BLOCKS = ["tx", "account", "history", "timing", "chains", "match", "subset", "cycles", "sg", "graph", "iforest", "conv",
-          "memo", "probe", "dormancy", "burst", "gemini"]
+          "memo", "probe", "dormancy", "burst", "gemini", "relay"]
 
 
 def features(e, drop=()):
@@ -721,7 +727,7 @@ def features(e, drop=()):
             "history": lambda: history_features(e, acct, L), "timing": lambda: timing_features(e, L),
             "chains": lambda: chain_features(e, L), "cycles": lambda: cycle_features(e, hubs),
             "sg": lambda: sg_features(e, hubs), "graph": lambda: graph_features(e, acct, hubs),
-            "iforest": lambda: iforest_features(e, acct), "burst": lambda: burst_features(e), "gemini": lambda: gemini_block(e)}
+            "iforest": lambda: iforest_features(e, acct), "burst": lambda: burst_features(e), "gemini": lambda: gemini_block(e), "relay": lambda: relay_block(e)}
     parts = []
     for b in BLOCKS:
         if b not in drop:
@@ -731,7 +737,7 @@ def features(e, drop=()):
 
 
 LOCAL_STACK = False  # (--local-stack) add +-24h neighbour scores
-OPTIONAL = {"subset", "dormancy"}  # (--add) built, but did not help on either practice set
+OPTIONAL = {"subset", "dormancy", "relay"}  # (--add) built, but did not help on either practice set
 
 
 def stack_features(e, L, M, score):
