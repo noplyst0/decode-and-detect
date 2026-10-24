@@ -714,7 +714,7 @@ def burst_features(e, windows=(120, 300, 900, 2700)):
 
 
 BLOCKS = ["tx", "account", "history", "timing", "chains", "match", "subset", "cycles", "sg", "graph", "iforest", "conv",
-          "memo", "probe", "dormancy", "burst", "gemini", "relay"]
+          "memo", "probe", "dormancy", "burst", "gemini", "relay", "repeat"]
 
 
 def features(e, drop=()):
@@ -727,7 +727,7 @@ def features(e, drop=()):
             "history": lambda: history_features(e, acct, L), "timing": lambda: timing_features(e, L),
             "chains": lambda: chain_features(e, L), "cycles": lambda: cycle_features(e, hubs),
             "sg": lambda: sg_features(e, hubs), "graph": lambda: graph_features(e, acct, hubs),
-            "iforest": lambda: iforest_features(e, acct), "burst": lambda: burst_features(e), "gemini": lambda: gemini_block(e), "relay": lambda: relay_block(e)}
+            "iforest": lambda: iforest_features(e, acct), "burst": lambda: burst_features(e), "gemini": lambda: gemini_block(e), "relay": lambda: relay_block(e), "repeat": lambda: __import__("gemini_repeat").repeat_features(e)}
     parts = []
     for b in BLOCKS:
         if b not in drop:
@@ -737,7 +737,7 @@ def features(e, drop=()):
 
 
 LOCAL_STACK = False  # (--local-stack) add +-24h neighbour scores
-OPTIONAL = {"subset", "dormancy", "relay"}  # (--add) built, but did not help on either practice set
+OPTIONAL = {"subset", "dormancy", "relay", "repeat"}  # (--add) built, but did not help on either practice set
 
 
 def stack_features(e, L, M, score):
@@ -785,6 +785,28 @@ def label_scenarios(d):
     return None if col is None else lab.set_index("TRANSACTION_HASH")[col]
 
 
+def label_families(d):
+    """Organiser scenario family per train tx (incl. innocent look-alikes), used only as a helper TARGET."""
+    lab = read_any(d, "label")
+    col = next((c for c in lab.columns if c.upper() == "FAMILY"), None)
+    return None if col is None else lab.set_index("TRANSACTION_HASH")[col].fillna("none").astype(str)
+
+
+def family_aux(F, Ft, fam, groups, seed, rounds=150):
+    """Predict which scenario family each tx belongs to (out-of-fold on train, full fit for test). The main model
+    then knows the shape context, since the suspicious-vs-look-alike rules flip by family."""
+    codes, names = pd.factorize(fam)
+    p = dict(objective="multiclass", num_class=len(names), learning_rate=0.08, num_leaves=15, min_child_samples=40,
+             feature_fraction=0.7, bagging_fraction=0.8, bagging_freq=1, verbose=-1, num_threads=8, seed=seed)
+    oof = np.zeros((len(F), len(names)))
+    for tr, va in GroupKFold(n_splits=5).split(F, codes, groups):
+        m = lgb.train(p, lgb.Dataset(F.iloc[tr], codes[tr]), rounds)
+        oof[va] = m.predict(F.iloc[va])
+    pt = lgb.train(p, lgb.Dataset(F, codes), rounds).predict(Ft)
+    cols = [f"fam_p_{n}" for n in names]
+    return pd.DataFrame(oof, F.index, cols), pd.DataFrame(pt, Ft.index, cols)
+
+
 def scenario_groups(e, y, hubs, scen=None):
     """CV groups: each connected laundering case (hubs excluded) is one group; normal payments group by sender.
     If the labels carry organiser scenario ids, those define the groups instead (both suspicious and look-alike)."""
@@ -825,8 +847,10 @@ def ap_eval(pred, data):
 def cv_oof(X, y, groups, seed, rounds=3000, folds=5):
     oof, best = np.zeros(len(y)), []
     for tr, va in GroupKFold(n_splits=folds).split(X, y, groups):
-        m = lgb.train({**PARAMS, "seed": seed}, lgb.Dataset(X.iloc[tr], y.iloc[tr]), rounds,
-                      valid_sets=[lgb.Dataset(X.iloc[va], y.iloc[va])], feval=ap_eval,
+        stop = os.environ.get("STOP_METRIC", "logloss")  # "logloss": smoother early stopping than AP on ~250 positives
+        prm = {**PARAMS, "seed": seed, **({"metric": "binary_logloss"} if stop == "logloss" else {})}
+        m = lgb.train(prm, lgb.Dataset(X.iloc[tr], y.iloc[tr]), rounds,
+                      valid_sets=[lgb.Dataset(X.iloc[va], y.iloc[va])], feval=None if stop == "logloss" else ap_eval,
                       callbacks=[lgb.early_stopping(100, verbose=False)])
         oof[va] = m.predict(X.iloc[va], num_iteration=m.best_iteration)
         best.append(m.best_iteration)
@@ -887,6 +911,12 @@ def main():
     if "memo" not in drop and e_tr.HAS_MEMO.any():
         te_tr, te_te = memo_target_encoding(e_tr, e_te, y, groups)
         F, Ft = pd.concat([F, te_tr], axis=1), pd.concat([Ft, te_te], axis=1)
+    if os.environ.get("FAMILY_AUX", "1") == "1":
+        fam = label_families(a.train)
+        if fam is not None:
+            fa, fb = family_aux(F, Ft, fam.reindex(e_tr.index), groups, a.seed)
+            F, Ft = pd.concat([F, fa], axis=1), pd.concat([Ft, fb], axis=1)
+            log(f"family helper: {fa.shape[1]} out-of-fold family probabilities added")
     X, Xt, history = F, Ft, []
     for r in range(a.stack + 1):
         if r:
