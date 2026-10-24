@@ -3,7 +3,7 @@
 # macOS needs `brew install libomp` for LightGBM. Data: organiser files in data/train and data/test.
 # Final = rank-average of up to three model configurations, then 5-minute burst smoothing. Set FINAL to choose.
 set -e
-FINAL="${FINAL:-v5 v5 v6c}"   # leaderboard-chosen; see NOTES.md
+FINAL="${FINAL:-v5 v5s7 v6c v6cs7}"   # leaderboard-chosen; see NOTES.md
 [ -d .venv ] || { python3 -m venv .venv && .venv/bin/pip install -r requirements.txt; }
 PY=.venv/bin/python
 B="--train data/train --test data/test --stack 0 --seeds 5 --xgb --drop memo,probe --seed 42"

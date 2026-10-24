@@ -35,7 +35,9 @@ mock's hidden test week, which has two shapes never seen in training (irregular,
 | 12:45 | - | v5 smoothed | - | 64.6 | |
 | 12:46 | - | v5 + v6a + v6c, smoothed | - | 64.8 | adding v6a (hard0) does not help |
 | 12:47 | - | v5 + v6c, smoothing a=0.65 | - | 64.8 | default a=0.5 is better |
-| 12:47 | - | v5 x2 + v6c, smoothed | - | **65.1** | best; run.sh FINAL="v5 v5 v6c" |
+| 12:47 | - | v5 x2 + v6c, smoothed | - | 65.1 | |
+| 12:48 | - | v5 + v5s7 + v6c + v6cs7, smoothed | - | **65.4** | best: more seed copies help; run.sh FINAL="v5 v5s7 v6c v6cs7" |
+| 12:49 | - | same with v5 weighted x2 | - | 65.3 | equal weights better |
 | 11:58 | d3d5e6a | sub v5 | 58.59 | **63.9** | log-loss early stopping + family helper (3-seed CV 58.9); easy 50% in top 1% |
 | 11:35 | b028bb6 | sub v4 | 56.64 | 62.3 | + Gemini motif features (src/gemini_feats.py, +0.9 CV over 2 seeds) + XGB blend 0.5 |
 | 11:08 | 0ed7435 | sub v3 | 56.75 | **62.0** | + burst shape/conversion, LGB lr .02/15 leaves/min_child 60, 5-seed avg (AUC .90; medium 0% in top 1%) |
