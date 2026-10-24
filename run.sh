@@ -30,10 +30,14 @@ for m in $FINAL; do
     v6cfd)   FAMDIFF=1 JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv ;;
     v5fds*)  FAMDIFF=1 JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5fds} ;;
     v6cfds*) FAMDIFF=1 JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v6cfds} ;;
+    v5jm)    WEIGHTS=med3 JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv ;;   # joint helper, medium x3
+    v6cjm)   WEIGHTS=med3 JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv ;;
+    v5jms*)  WEIGHTS=med3 JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5jms} ;;
+    v6cjms*) WEIGHTS=med3 JOINT_AUX=1 USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v6cjms} ;;
     v5s*)  USD_MODE=nominal $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v5s} ;;    # v5 with another seed
     v6cs*) USD_MODE=true    $PY src/pipeline.py $B --out runs/final_$m.csv --seed ${m#v6cs} ;;   # v6c with another seed
   esac
 done
 if [ "$(echo $FINAL | wc -w)" -gt 1 ]; then $PY src/rank_ensemble.py --out runs/final_ens.csv $files; else cp $files runs/final_ens.csv; fi
-$PY src/smooth_sub.py --test data/test --sub runs/final_ens.csv --out submission.csv --w "${SMOOTH_W:-450}"
+$PY src/smooth_sub.py --test data/test --sub runs/final_ens.csv --out submission.csv --w "${SMOOTH_W:-450}" --a "${SMOOTH_A:-0.5}"
 $PY src/check_submission.py submission.csv data/test
