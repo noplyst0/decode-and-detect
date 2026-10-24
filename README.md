@@ -14,6 +14,7 @@ Computing: Python 3.13, CPU only, about 50 minutes and ~1.5 GB peak RAM on an Ap
 ## Other leaderboard runs and how to rebuild each
 The submitted file (67.3) is the `./run.sh` default. Other runs that also showed 67.3 rebuild with the same code:
 - self-training weight 0.20: `SELFTRAIN_L=0.2 ./run.sh`; three averaged pseudo-models: `SELFTRAIN_BAG=3 ./run.sh`
+- pseudo-model on the pattern x difficulty model's features, weight 0.20: `SELFTRAIN_FD=1 SELFTRAIN_L=0.2 ./run.sh`
 - medium-weighted models: `FINAL="v5fm v5fms7 v5fms11 v6cfm v6cfms7 v6cfms11" ./run.sh`
 - both model sets: `FINAL="v5fd v5fds7 v5fds11 v6cfd v6cfds7 v6cfds11 v5fm v5fms7 v5fms11 v6cfm v6cfms7 v6cfms11" ./run.sh`
 Runs at 67.2:

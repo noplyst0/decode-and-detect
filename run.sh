@@ -48,7 +48,11 @@ for m in $FINAL; do
 done
 if [ "$(echo $FINAL | wc -w)" -gt 1 ]; then $PY src/rank_ensemble.py --out runs/final_ens.csv $files; else cp $files runs/final_ens.csv; fi
 if [ "${SELFTRAIN:-1}" = 1 ]; then   # test-week self-training (src/selftrain.py) on the joint-helper model's test features
-  JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --dump --out runs/feats_model.csv   # writes runs/test_feats.parquet
+  if [ "${SELFTRAIN_FD:-0}" = 1 ]; then   # pseudo-model on the pattern x difficulty model's features instead
+    FAMDIFF=1 JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --dump --out runs/feats_model.csv
+  else
+    JOINT_AUX=1 USD_MODE=nominal $PY src/pipeline.py $B --dump --out runs/feats_model.csv   # writes runs/test_feats.parquet
+  fi
   $PY src/selftrain.py --sub runs/final_ens.csv --feats runs/test_feats.parquet --out runs/final_ens_st.csv \
     --K "${SELFTRAIN_K:-600}" --lam "${SELFTRAIN_L:-0.25}" --bag "${SELFTRAIN_BAG:-1}" --N "${SELFTRAIN_N:-4000}"
   mv runs/final_ens_st.csv runs/final_ens.csv
