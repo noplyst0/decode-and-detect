@@ -1,5 +1,22 @@
 #!/bin/sh
-# Reproduce the submitted predictions. Python 3.13; macOS needs `brew install libomp` for LightGBM.
+# Reproduce the submitted predictions (Cloudee, Decode & Detect 2026). Python 3.13, CPU only, ~10 min, ~1 GB RAM.
+# macOS needs `brew install libomp` for LightGBM. Data: organiser files in data/train and data/test.
+# Final = rank-average of up to three model configurations, then 5-minute burst smoothing. Set FINAL to choose.
 set -e
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python src/pipeline.py --train data/train --test data/test --out submission.csv --seed 42 --seeds 5 --stack 0 --xgb --drop memo,probe
+FINAL="${FINAL:-v5 v6c}"   # leaderboard-chosen; see NOTES.md
+[ -d .venv ] || { python3 -m venv .venv && .venv/bin/pip install -r requirements.txt; }
+PY=.venv/bin/python
+B="--train data/train --test data/test --stack 0 --seeds 5 --xgb --drop memo,probe --seed 42"
+mkdir -p runs
+files=""
+for m in $FINAL; do
+  case $m in
+    v5)  USD_MODE=nominal              $PY src/pipeline.py $B --out runs/final_v5.csv ;;   # LB 63.9 alone
+    v6a) USD_MODE=true WEIGHTS=hard0   $PY src/pipeline.py $B --out runs/final_v6a.csv ;;  # LB 62.6 alone
+    v6c) USD_MODE=true                 $PY src/pipeline.py $B --out runs/final_v6c.csv ;;  # LB 62.8 alone
+  esac
+  files="$files runs/final_$m.csv"
+done
+$PY src/rank_ensemble.py --out runs/final_ens.csv $files
+$PY src/smooth_sub.py --test data/test --sub runs/final_ens.csv --out submission.csv
+$PY src/check_submission.py submission.csv data/test
