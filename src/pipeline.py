@@ -647,6 +647,12 @@ def iforest_features(e, acct):
     return pd.DataFrame({"s_iforest": e.SRC.map(score), "d_iforest": e.DST.map(score)}, index=e.index)
 
 
+def gemini_block(e):
+    """Features designed by Gemini (Argon 4) from our aggregate findings only; see src/gemini_feats.py."""
+    from gemini_feats import gemini_features
+    return gemini_features(e)
+
+
 def burst_features(e, windows=(120, 300, 900, 2700)):
     """Rebuild bursts: link payments that touch the same wallet within w seconds (single linkage), then describe
     the group each payment lands in. Planted flows finish their whole shape in minutes; look-alikes take hours."""
@@ -702,7 +708,7 @@ def burst_features(e, windows=(120, 300, 900, 2700)):
 
 
 BLOCKS = ["tx", "account", "history", "timing", "chains", "match", "subset", "cycles", "sg", "graph", "iforest", "conv",
-          "memo", "probe", "dormancy", "burst"]
+          "memo", "probe", "dormancy", "burst", "gemini"]
 
 
 def features(e, drop=()):
@@ -715,7 +721,7 @@ def features(e, drop=()):
             "history": lambda: history_features(e, acct, L), "timing": lambda: timing_features(e, L),
             "chains": lambda: chain_features(e, L), "cycles": lambda: cycle_features(e, hubs),
             "sg": lambda: sg_features(e, hubs), "graph": lambda: graph_features(e, acct, hubs),
-            "iforest": lambda: iforest_features(e, acct), "burst": lambda: burst_features(e)}
+            "iforest": lambda: iforest_features(e, acct), "burst": lambda: burst_features(e), "gemini": lambda: gemini_block(e)}
     parts = []
     for b in BLOCKS:
         if b not in drop:
