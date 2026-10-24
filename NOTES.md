@@ -26,6 +26,7 @@ mock's hidden test week, which has two shapes never seen in training (irregular,
 |---|---|---|---|---|---|
 | 10:52 | (scenario CV) | sub v1 | 50.2 | 58.1 | --fast --stack 0, CV folds by organiser scenario_id |
 | 10:58 | 428daff | sub v2 | 54.5 | 59.9 | + burst block (wallet-sharing groups within 2/5/15/45 min); --drop memo,probe |
+| 11:08 | 0ed7435 | sub v3 | 56.75 | **62.0** | + burst shape/conversion, LGB lr .02/15 leaves/min_child 60, 5-seed avg (AUC .90; medium 0% in top 1%) |
 
 ## Real data facts (10-24 morning)
 - 700 wallets, ~57 tx each; 535 wallets touch a suspicious scenario: no wallet-level signal, stacking hurts.
