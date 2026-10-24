@@ -16,7 +16,7 @@ if header != "TRANSACTION_HASH,score": fail(f"header is {header!r}")
 sub = pd.read_csv(csv, dtype={"TRANSACTION_HASH": str})
 tx_file = [p for p in glob.glob(os.path.join(test_dir, "*.parquet")) if "transaction" in os.path.basename(p).lower()]
 tx = pd.read_parquet(tx_file[0])
-hcol = next(c for c in tx.columns if "HASH" in c.upper())
+hcol = "TRANSACTION_HASH" if "TRANSACTION_HASH" in tx.columns else next(c for c in tx.columns if "TX" in c.upper() and "HASH" in c.upper())
 want = set(tx[hcol].astype(str))
 got = sub.TRANSACTION_HASH
 

@@ -711,8 +711,22 @@ PARAMS = dict(objective="binary", metric="None", learning_rate=0.05, num_leaves=
               feature_fraction=0.7, bagging_fraction=0.8, bagging_freq=1, lambda_l2=1.0, verbose=-1, num_threads=8)
 
 
-def scenario_groups(e, y, hubs):
-    """CV groups: each connected laundering case (hubs excluded) is one group; normal payments group by sender."""
+def label_scenarios(d):
+    """Organiser scenario ids (train labels only), or None. Used ONLY to build CV folds, never as a feature."""
+    lab = read_any(d, "label")
+    col = next((c for c in lab.columns if "SCENARIO" in c.upper()), None)
+    return None if col is None else lab.set_index("TRANSACTION_HASH")[col]
+
+
+def scenario_groups(e, y, hubs, scen=None):
+    """CV groups: each connected laundering case (hubs excluded) is one group; normal payments group by sender.
+    If the labels carry organiser scenario ids, those define the groups instead (both suspicious and look-alike)."""
+    if scen is not None:
+        sc = scen.reindex(e.index)
+        key = pd.Series(np.where(sc.notna(), "S" + sc.astype(str), "N" + e.SRC.astype(str)), index=e.index)
+        pos_sizes = key[y.eq(1)].value_counts()
+        log(f"CV groups (scenario ids): {key.nunique()} ({len(pos_sizes)} laundering), largest {pos_sizes.max()}")
+        return pd.factorize(key)[0]
     parent = {}
 
     def find(a):
@@ -802,7 +816,7 @@ def main():
     log("features train:"); F, ctx = features(e_tr, drop)
     log("features test:"); Ft, ctx_t = features(e_te, drop)
     Ft = Ft.reindex(columns=F.columns)
-    groups = scenario_groups(e_tr, y, ctx["hubs"])
+    groups = scenario_groups(e_tr, y, ctx["hubs"], label_scenarios(a.train))
     if "memo" not in drop and e_tr.HAS_MEMO.any():
         te_tr, te_te = memo_target_encoding(e_tr, e_te, y, groups)
         F, Ft = pd.concat([F, te_tr], axis=1), pd.concat([Ft, te_te], axis=1)
