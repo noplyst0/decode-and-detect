@@ -34,7 +34,7 @@ that share mules otherwise chain into one giant group.
 Before the event we built two practice generators in the real schema: our own, and an independent one that
 Gemini wrote from the challenge brief alone, without seeing our code. Our pipeline fell from 99 on our data to
 83 on Gemini's, which exposed blind spots (issuer swaps, memos, probe payments). Fixing those raised it to
-93.7. Noise floor across generator seeds: **[FILL from NOTES.md]**.
+93.7. Changing only the model seed moved its score by about 0.6 AP, so we only kept changes that beat that.
 
 ## 6. Results on the real data
 | version | change | CV AP | leaderboard AP |

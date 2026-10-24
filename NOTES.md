@@ -19,6 +19,7 @@ mock's hidden test week, which has two shapes never seen in training (irregular,
 | 10-24 00:40 | + Gemini's review ideas: vtags, subset, dormancy, local24 stacking | 97.5 | 92.6 | 52.1 | 54.9 | worse; mockB 99.19 |
 | 10-24 00:40 | same, --drop memo | 94.4 | 81.0 | 9.2 | 28.1 | memo carries the hard-case gain on Gemini's data |
 | 10-24 00:50 | ablation: all four review ideas off (+ failed-payment USD kept) | 97.3 | **93.7** | 58.9 | 61.7 | default now; the four ideas are opt-in flags |
+| 10-24 08:55 | NOISE FLOOR: Gemini data seeds 7/11/23 + model seed 1 on seed 7 (full run ~50s, --fast 38s) | 97.2-97.3 | 93.66 / 93.55 / 95.75; seed-1 model 94.23 | 58.9/55.0/67.9; 61.2 | 61.7/64.0/71.5; 63.6 | model seed alone moves overall ~0.6, hard/medium ~2-3: smaller gains are noise, confirm with a 2nd seed |
 
 ## Leaderboard uploads (fill in tomorrow)
 | time | commit | file | CV AP | LB AP | change |
