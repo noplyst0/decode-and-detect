@@ -816,7 +816,8 @@ def stack_features(e, L, M, score):
 
 # ---------- 3. model ----------
 PARAMS = dict(objective="binary", metric="None", learning_rate=0.02, num_leaves=15, min_child_samples=60,
-              feature_fraction=0.7, bagging_fraction=0.8, bagging_freq=1, lambda_l2=1.0, verbose=-1, num_threads=8)
+              feature_fraction=0.7, bagging_fraction=0.8, bagging_freq=1, lambda_l2=1.0, verbose=-1, num_threads=8,
+              force_col_wise=True, deterministic=True)  # fixed threading mode: identical output under any CPU load
 PARAMS.update(json.loads(os.environ.get("LGB_PARAMS", "{}")))  # quick experiments without editing the file
 
 
@@ -839,7 +840,8 @@ def family_aux(F, Ft, fam, groups, seed, rounds=150):
     then knows the shape context, since the suspicious-vs-look-alike rules flip by family."""
     codes, names = pd.factorize(fam)
     p = dict(objective="multiclass", num_class=len(names), learning_rate=0.08, num_leaves=15, min_child_samples=40,
-             feature_fraction=0.7, bagging_fraction=0.8, bagging_freq=1, verbose=-1, num_threads=8, seed=seed)
+             feature_fraction=0.7, bagging_fraction=0.8, bagging_freq=1, verbose=-1, num_threads=8, seed=seed,
+             force_col_wise=True, deterministic=True)
     oof = np.zeros((len(F), len(names)))
     for tr, va in GroupKFold(n_splits=5).split(F, codes, groups):
         m = lgb.train(p, lgb.Dataset(F.iloc[tr], codes[tr]), rounds)
