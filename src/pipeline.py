@@ -1020,6 +1020,8 @@ def main():
         d = aux.difficulty.fillna("normal").to_numpy()
         if wmode == "hard0":
             TRAIN_W = np.where((y.to_numpy() == 1) & np.isin(d, ["hard"]), 0.0, 1.0)
+        elif wmode == "med3":  # medium positives count 3x: they rank below their look-alikes otherwise
+            TRAIN_W = np.where((y.to_numpy() == 1) & np.isin(d, ["medium"]), 3.0, 1.0)
         elif wmode == "gemini":
             from gemini_modelling import get_sample_weights_and_params
             _, TRAIN_W, _ = get_sample_weights_and_params(y, aux, None, a.seed)
@@ -1066,6 +1068,7 @@ def main():
     imp.to_csv(f"runs/importance_{os.path.basename(a.out)}.csv")
     if a.dump:  # for error analysis: features, label and out-of-fold score of every training tx
         X.assign(y=y.values, oof=final_oof, SRC=e_tr.SRC, DST=e_tr.DST, TS=e_tr.TS).to_parquet("runs/oof.parquet")
+        Xt.to_parquet("runs/test_feats.parquet")  # same columns for the test week (helper probabilities included)
 
 
 if __name__ == "__main__":

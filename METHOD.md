@@ -68,7 +68,9 @@ Late tuning that did not beat the six-model ensemble (66.1) on the leaderboard: 
 65.8), a 9-minute window (65.6), multi-scale smoothing (65.9), weighting one model double (65.3), per-week
 feature percentiles (65.8 vs 65.4 with two models, but 65.7 with six), the six models plus their six week-normalised
 twins (66.1, a tie, so the simpler six-model ensemble stays), covariate-shift weights from a train-vs-test classifier
-(65.4, no change with two models). With the joint helper, adding the six models without it gave 66.8 (vs 66.9).
+(65.4, no change with two models). With the joint helper, adding the six models without it gave 66.8 (vs 66.9). On top of the joint-helper
+ensemble: 5- or 10-minute smoothing (66.6 / 66.5), smoothing strength 0.6 (66.7), and re-ranking by the helper's
+medium-case probabilities (66.6-66.8, although +1.2 out of fold).
 
 Tried and rejected after testing (2-3 seeds each): stacking on neighbour scores, memo and failed-payment features
 (the real data has none), Gemini's relay, repeat-burst and twin-specialist ideas, looser trees.
