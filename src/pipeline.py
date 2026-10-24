@@ -124,6 +124,12 @@ def usd_rates(rates):
     pcol = find_col(rates, "USD", "PRICE", "RATE", exclude=(tcol,))
     r = rates.copy()
     r["H"] = to_unix(r[tcol]) // HOUR
+    if "MICRO" in pcol:  # PRICE_MICRO_USD: millionths of a dollar per asset unit (found by the review session)
+        r[pcol] = r[pcol].astype(float) / 1e6
+    if "ASSET" in r.columns and "TOKEN_ADDRESS" not in r.columns:  # ASSET = "XRP" or "issuer:currency"
+        a = r["ASSET"].astype(str)
+        r["SYMBOL"] = np.where(a.eq("XRP"), "XRP", a.str.split(":").str[-1])
+        r["TOKEN_ADDRESS"] = np.where(a.eq("XRP"), XRP_TOKEN, a.str.split(":").str[0])
     key = [k for k in ("TOKEN_ADDRESS", "SYMBOL") if k in r.columns]
     return r[["H", *key, pcol]].rename(columns={pcol: "USD_PRICE"}).drop_duplicates(["H", *key]), key
 
