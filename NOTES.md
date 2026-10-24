@@ -24,3 +24,12 @@ mock's hidden test week, which has two shapes never seen in training (irregular,
 ## Leaderboard uploads (fill in tomorrow)
 | time | commit | file | CV AP | LB AP | change |
 |---|---|---|---|---|---|
+| 10:52 | (scenario CV) | sub v1 | 50.2 | 58.1 | --fast --stack 0, CV folds by organiser scenario_id |
+| 10:58 | 428daff | sub v2 | 54.5 | 59.9 | + burst block (wallet-sharing groups within 2/5/15/45 min); --drop memo,probe |
+
+## Real data facts (10-24 morning)
+- 700 wallets, ~57 tx each; 535 wallets touch a suspicious scenario: no wallet-level signal, stacking hurts.
+- No memos, no failures, fees/flags/tags identical: only behaviour separates. Every family has innocent twins.
+- Easy flows finish in minutes (gap ~1 min, pass on ~97%); look-alikes take ~1 h (~89% kept). Medium ~ look-alike.
+- Hard = 100 positives hidden in each 10k relay family, ~7 scenarios each in train: not learnable, deprioritised.
+- LGB lr 0.02, 15 leaves, min_child 60: CV 56.4 vs 54.5 default.

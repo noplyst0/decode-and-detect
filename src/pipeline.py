@@ -678,6 +678,26 @@ def burst_features(e, windows=(120, 300, 900, 2700)):
         f[f"bu{m}_wallets_per_tx"] = nw / size
         f[f"bu{m}_usd_cv"] = (grp.u.transform("std") / grp.u.transform("mean")).to_numpy()
         f[f"bu{m}_pos"] = (grp.t.rank(method="first").to_numpy() - 1) / np.maximum(size - 1, 1)
+        if w in (300, 900) and os.environ.get("BURST_SHAPE", "1") == "1":
+            c["cv"] = e.IS_CONV.to_numpy(float); c["a"] = e.ASSET_SENT.astype(str).to_numpy()
+            g2 = c.groupby("c")
+            f[f"bu{m}_conv"] = g2.cv.transform("mean").to_numpy()
+            f[f"bu{m}_nsym"] = g2.a.transform("nunique").to_numpy()
+            f[f"bu{m}_usd_med"] = np.log1p(g2.u.transform("median").to_numpy())
+            f[f"bu{m}_nsrc"] = g2.s.transform("nunique").to_numpy()
+            f[f"bu{m}_ndst"] = g2.d.transform("nunique").to_numpy()
+            f[f"bu{m}_maxout"] = c.groupby(["c", "s"]).s.transform("size").groupby(c.c).transform("max").to_numpy()
+            f[f"bu{m}_maxin"] = c.groupby(["c", "d"]).d.transform("size").groupby(c.c).transform("max").to_numpy()
+            f[f"bu{m}_ret"] = c.groupby("c").apply(lambda g: len(set(g.s) & set(g.d)), include_groups=False).reindex(c.c).to_numpy()
+        if w in (300, 900, 2700) and os.environ.get("BURST_KEPT", "0") == "1":
+            uin = c.groupby(["c", "d"]).u.sum(); uout = c.groupby(["c", "s"]).u.sum()
+            uin.index.names = uout.index.names = ["c", "w"]
+            both = pd.concat([uin.rename("i"), uout.rename("o")], axis=1).dropna()
+            mid = both.groupby(level="c").agg(i=("i", "sum"), o=("o", "sum"), k=("i", "size"))
+            f[f"bu{m}_kept"] = c.c.map(mid.o / mid.i).to_numpy()
+            f[f"bu{m}_mids"] = c.c.map(mid.k).fillna(0).to_numpy()
+            dkept = (uout / uin.reindex(uout.index)).rename("dk")
+            f[f"bu{m}_dst_kept"] = pd.MultiIndex.from_arrays([c.c, c.d]).map(dkept.to_dict().get).astype(float)
     return f
 
 
@@ -741,8 +761,9 @@ def stack_features(e, L, M, score):
 
 
 # ---------- 3. model ----------
-PARAMS = dict(objective="binary", metric="None", learning_rate=0.05, num_leaves=31, min_child_samples=30,
+PARAMS = dict(objective="binary", metric="None", learning_rate=0.02, num_leaves=15, min_child_samples=60,
               feature_fraction=0.7, bagging_fraction=0.8, bagging_freq=1, lambda_l2=1.0, verbose=-1, num_threads=8)
+PARAMS.update(json.loads(os.environ.get("LGB_PARAMS", "{}")))  # quick experiments without editing the file
 
 
 def label_scenarios(d):
