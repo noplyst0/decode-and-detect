@@ -2,6 +2,8 @@
 
 Team: TBD (captain, members)
 
-Run: `./run.sh` (expects organiser data in `data/train`, `data/test`).
+Run: `./run.sh` (expects organiser data in `data/train`, `data/test`; seed 42). Check the output before
+upload: `.venv/bin/python src/check_submission.py submission.csv data/test`.
 
-Method: see `METHOD.md` (written on the day). Licence: MIT. AI use: `AI_DISCLOSURE.md`.
+Submitted commit: `[FILL]`. Leaderboard AP: `[FILL]`. Results and method: `METHOD.md`.
+Licence: MIT. AI use: `AI_DISCLOSURE.md`.
