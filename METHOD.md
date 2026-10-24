@@ -1,7 +1,8 @@
 # Method: Decode & Detect (XRPL AI Hack, 24 Oct 2026)
 
-**Result:** leaderboard AP **[FINAL]** (commit `[FINAL]`, seed 42, 5-seed average). Progress: 58.1 → 59.9 → 62.0 →
-62.3 → 63.9 → [FINAL]. Reproduce with `./run.sh` (organiser data in `data/train`, `data/test`; ~3 min, ~1 GB RAM, CPU).
+**Result:** leaderboard AP **66.1** (precision 92% / recall 30% in the top 1%, ROC AUC 0.91). Progress: 58.1 → 59.9 →
+62.0 → 62.3 → 63.9 → 65.0 → 65.4 → 65.7 → **66.1**. Reproduce with `./run.sh` (organiser data in `data/train`,
+`data/test`; ~15 min and ~1 GB RAM on a laptop CPU); it rebuilds the uploaded file byte for byte.
 Scores mean "worth a human look" on synthetic data, never evidence of wrongdoing.
 
 ## 1. What the data taught us (before any modelling)
@@ -34,6 +35,11 @@ XGBoost (weight chosen out of fold). Two modelling changes mattered more than an
    features, so the main model knows which shape a payment sits in. That matters because the suspicious-vs-look-alike
    rules flip by shape (planted cycles avoid conversions; planted fan-outs use them). +1.1 CV on all three seeds.
 
+**Final submission** (`run.sh`): six models, each a 5-seed LightGBM + XGBoost blend, rank-averaged: three copies
+(seeds 42, 7, 11) valued in *nominal* units and three in true per-asset USD (see section 6 for why both), then
+**burst smoothing**: payments sharing a wallet within 7.5 minutes form a group, and each score becomes
+0.5 × its own rank + 0.5 × the rank of its group's best score, so one confident payment in a fast flow lifts the rest.
+
 ## 4. Validation
 5-fold GroupKFold with the organisers' `scenario_id` as the group, so no scenario is split between training and
 validation (our first grouping by wallet components merged everything into 8 groups and gave meaningless CV).
@@ -47,7 +53,15 @@ Every decision was compared over 2-3 seeds, because single-seed differences unde
 | v3 | + burst shape/conversion, simpler trees, 5-seed average | 56.8 | 62.0 |
 | v4 | + Gemini motif features, XGBoost blend | 56.6 | 62.3 |
 | v5 | log-loss early stopping + family helper | 58.6 | 63.9 |
-| [FINAL] | | | |
+| v6 | + true per-asset USD (bug fix) | 61.0 | 62.8 (alone) |
+| ens | rank-average of v5 and v6 | - | 64.1 |
+| ens + smooth | + burst smoothing (5 min) | - | 65.0 |
+| 4 models | v5 and v6, two seeds each | - | 65.4 |
+| 4 models, 7.5 min | wider smoothing window | - | 65.7 |
+| **final** | six models (three seeds each), 7.5-minute smoothing | - | **66.1** |
+
+Late tuning that did not beat 66.1 on the leaderboard: eight models (66.0), smoothing strength 0.35 / 0.65 (66.0 /
+65.8), a 9-minute window (65.6), multi-scale smoothing (65.9), weighting one model double (65.3).
 
 Tried and rejected after testing (2-3 seeds each): stacking on neighbour scores, memo and failed-payment features
 (the real data has none), Gemini's relay, repeat-burst and twin-specialist ideas, looser trees.
