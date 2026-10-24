@@ -28,13 +28,13 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--sub", required=True); ap.add_argument("--feats", required=True); ap.add_argument("--out", required=True)
     ap.add_argument("--K", type=int, default=600); ap.add_argument("--lam", type=float, default=0.25)
-    ap.add_argument("--bag", type=int, default=1)
+    ap.add_argument("--bag", type=int, default=1); ap.add_argument("--N", type=int, default=6000)
     a = ap.parse_args()
     ens = pd.read_csv(a.sub).set_index("TRANSACTION_HASH").score
     X = pd.read_parquet(a.feats).reindex(ens.index)
     rk = lambda v: pd.Series(np.asarray(v, float), index=ens.index).rank(pct=True)
-    pr = sum(rk(selftrain(X, ens.to_numpy(), a.K, seed=s)) for s in range(a.bag)) / a.bag if a.bag > 1 \
-        else rk(selftrain(X, ens.to_numpy(), a.K))
+    pr = sum(rk(selftrain(X, ens.to_numpy(), a.K, N=a.N, seed=s)) for s in range(a.bag)) / a.bag if a.bag > 1 \
+        else rk(selftrain(X, ens.to_numpy(), a.K, N=a.N))
     s = rk(ens) + a.lam * rk(pr)
     s = (s - s.min()) / (s.max() - s.min())
     pd.DataFrame({"TRANSACTION_HASH": ens.index, "score": s.values}).to_csv(a.out, index=False)
